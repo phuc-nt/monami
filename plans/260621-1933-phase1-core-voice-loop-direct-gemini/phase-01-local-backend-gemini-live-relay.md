@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Local Backend Gemini Live Relay"
-status: pending
+status: completed
 priority: P1
 effort: "1d"
 dependencies: []
@@ -69,12 +69,38 @@ voice loop; the Flutter app is a thin client.
 
 ## Success Criteria
 
-- [ ] `uvicorn` serves `/ws/voice`; `/health` returns ok.
-- [ ] A local WS test streams a WAV and receives transcript + audio + turn_complete.
-- [ ] Verified config applied (language_hints, trailing-silence VAD, strict safety,
-      AUDIO-only, bilingual prompt + profile).
-- [ ] No GCP credential leaves the server.
-- [ ] Backend core stays small/focused; no spike import.
+- [x] `uvicorn` serves `/ws/voice`; `/health` returns ok. (smoke-tested → `{"status":"ok"}`)
+- [~] A local WS test streams a WAV and receives transcript + audio + turn_complete.
+      Test client written (`scripts/ws_test_client.py`); relay loop proven in-process
+      (two-turn test). Full audio round-trip needs real ADC → user manual run.
+- [x] Verified config applied (language_hints `[vi-VN,en-US]`, trailing-silence VAD,
+      strict safety BLOCK_LOW_AND_ABOVE ×4, AUDIO-only, bilingual prompt + profile) —
+      asserted at import; matches spike verbatim (25600B/800ms silence math exact).
+- [x] No GCP credential leaves the server (creds via ADC server-side; wire carries
+      audio + transcript/control JSON only; error frame sends generic message).
+- [x] Backend core stays small/focused (~290 LOC); no spike import.
+
+## Completion Notes
+
+Implemented `backend/`: `main.py` (FastAPI `/ws/voice` + `/health`, Starlette WS
+adapter), `gemini_session.py` (per-connection relay, uplink/downlink pumps),
+`gemini_session_config.py` (verified config), `child_profile.py` (1 hard-coded
+profile), `scripts/ws_test_client.py`, requirements/README/.env.example/.gitignore.
+Deps pinned to google-genai 2.9.0 (the Phase-0-verified version).
+
+Code review caught + fixed two bugs the single-turn smoke test masked:
+- **Single-turn relay**: the SDK's `session.receive()` ends at the first
+  `turn_complete`. Wrapped it in a per-turn outer loop so the session is truly
+  multi-turn (proven with a two-turn in-process test).
+- **Disconnect misclassification**: `WebSocketDisconnect`/`ConnectionClosed` aren't
+  `ConnectionError`, so normal disconnects logged as crashes. Fixed: adapter
+  translates `WebSocketDisconnect`→`ConnectionError` at the boundary; benign tuple
+  also covers `ConnectionClosed`. Also: client error frame is now generic (no
+  internal detail leaked).
+
+**User manual step before Phase 3 end-to-end**: run the backend with real ADC
+(`gcloud auth application-default login`) + `backend/.env`, then
+`python scripts/ws_test_client.py <16k-mono.wav>` to confirm the full audio loop.
 
 ## Risk Assessment
 

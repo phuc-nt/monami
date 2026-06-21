@@ -1,0 +1,7 @@
+# Backend-local ignores (root .gitignore already covers .env, __pycache__).
+.env
+.pyenv-backend/
+.venv/
+venv/
+__pycache__/
+*.pyc

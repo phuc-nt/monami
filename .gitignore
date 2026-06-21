@@ -5,8 +5,9 @@
 *.pem
 *.key
 
-# === Python (spike throwaway env + caches) ===
+# === Python (local envs + caches — never commit) ===
 .pyenv-spike/
+.pyenv-backend/
 .venv/
 venv/
 __pycache__/

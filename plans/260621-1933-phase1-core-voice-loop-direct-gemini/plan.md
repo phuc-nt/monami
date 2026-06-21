@@ -1,7 +1,7 @@
 ---
 title: "Phase 1: Core Voice Loop (Direct Gemini Live, no LiveKit)"
 description: "Working bilingual EN/VN voice loop on Flutter desktop ↔ local Python backend ↔ Gemini Live native-audio. No LiveKit."
-status: pending
+status: in-progress
 priority: P1
 created: 2026-06-21
 source: ../reports/phase0-go-nogo-decision-gemini-live-vn-child-speech-report.md
@@ -56,8 +56,8 @@ audio plugins disappoint.)
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Local Backend Gemini Live Relay](./phase-01-local-backend-gemini-live-relay.md) | Pending |
-| 2 | [Flutter Voice Client](./phase-02-flutter-voice-client.md) | Pending |
+| 1 | [Local Backend Gemini Live Relay](./phase-01-local-backend-gemini-live-relay.md) | ✅ Completed |
+| 2 | [Flutter Voice Client](./phase-02-flutter-voice-client.md) | Pending (blocked: install Flutter) |
 | 3 | [Integrate Bilingual Voice Loop](./phase-03-integrate-bilingual-voice-loop.md) | Pending |
 | 4 | [Validate Slow-Speech Gate and Latency](./phase-04-validate-slow-speech-gate-and-latency.md) | Pending |
 

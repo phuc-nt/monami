@@ -1,0 +1,11 @@
+# monami voice backend — Phase 1 (local Gemini Live relay)
+# google-genai 2.9.0 is the version verified in the Phase 0 spike (the live API
+# shape used here — input_audio_transcription / send_realtime_input / model_turn —
+# is validated on 2.x). Pin to the 2.x major.
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+google-genai>=2.9,<3.0
+python-dotenv>=1.0,<2.0
+
+# Test client only (scripts/ws_test_client.py): a standalone WebSocket client.
+websockets>=13.0,<17.0
