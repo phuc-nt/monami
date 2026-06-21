@@ -1,0 +1,37 @@
+# === Secrets — never commit ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# === Python (spike throwaway env + caches) ===
+.pyenv-spike/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# === Spike: private/heavy artifacts (privacy: child speech) ===
+# Keep harness code + templates; ignore logs, audio, recorded samples.
+spike/results/*.jsonl
+spike/results/audio_out/
+spike/samples/
+*.wav
+*.pcm
+*.aiff
+
+# === Local agent config / instructions — not for remote ===
+.claude/
+AGENTS.md
+CLAUDE.md
+
+# === OS / editor noise ===
+.DS_Store
+*.swp
+*~
+
+# === JS/TS deps (if ever added) ===
+node_modules/
+dist/
+build/

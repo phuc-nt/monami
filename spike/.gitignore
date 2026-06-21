@@ -1,0 +1,19 @@
+# Secrets — never commit the real env.
+.env
+
+# Trial logs may contain transcribed child speech — keep local only.
+results/*.jsonl
+
+# Any audio (response or recorded child samples) stays local; delete after scoring.
+results/audio_out/
+*.wav
+*.pcm
+
+# Python noise
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Recorded/synthesized voice samples — local only, delete after scoring.
+samples/

@@ -1,0 +1,14 @@
+# Phase 0 spike — Harness A (direct Gemini Live native audio). THROWAWAY.
+# Pin loosely; this is a spike, not production. Resolve exact patch versions
+# at install time. Verify google-genai still exposes the live API shape used
+# in gemini_live_direct_probe.py (input_audio_transcription /
+# output_audio_transcription / send_realtime_input) — the SDK moves fast.
+
+google-genai>=1.0.0        # Gemini Live API (Vertex AI) client + types
+python-dotenv>=1.0.0       # load spike/.env
+sounddevice>=0.4.6         # mic capture for --mic mode (PortAudio bindings)
+
+# --- Harness B (LiveKit agent, turn-detector tuning) — uncomment ONLY if the
+#     cutoff question forces escalation per the plan's decision rule. ---
+# livekit-agents>=1.6.0
+# livekit-plugins-google>=1.6.0
