@@ -60,17 +60,44 @@ transcript/control JSON, never credentials/project id/model id. Verified:
 `backend/.env`, the python env dir, pycache, and all child audio are gitignored;
 secret scan on the commit was clean.
 
+## Live validation (real ADC, real child voices)
+
+Ran the backend with real ADC (`gcloud auth application-default login`, quota
+project `monami-kids-spike`) + both children's clips through `ws_test_client.py`
+(clips re-encoded to 16k mono PCM in `/tmp`, deleted after — never in the repo):
+
+| Child | Input transcript (vi, hints correct) | Reply (warm, profile felt) | first-audio |
+|-------|--------------------------------------|----------------------------|-------------|
+| Vy | "Bà ơi tại sao phép thuật của Elsa lại có nhiều phép thuật vậy bà?" | "À, Vy thích Elsa lắm đúng không? …Vy thấy phép thuật đó có đẹp không?" | **509 ms** |
+| Phong | "Bạn ơi, tại sao xe ô tô lại có bốn bánh?" | "Chào Vy! Xe ô tô có bốn bánh để chạy cho thật vững vàng…" | (see note) |
+
+Confirmed end-to-end: real audio → correct VN transcript (`language_hints`) →
+spoken bilingual reply (24k PCM, played back fine). **first-audio 509 ms < 1.2 s
+target** (better than Phase 0's ~850 ms). Hard-coded profile (Vy/Elsa) reflected
+naturally — bot greets by name + references the interest; tone warm, short, ends
+with an open question; safe.
+
+**Measurement caveat (for Phase 4):** Phong's turn logged `first_audio≈0.2ms` —
+a test-client artifact: response audio began streaming before the `end_utterance`
+flush completed, so the `t_user_end` anchor was wrong for that turn. The real
+latency was fine; the anchoring needs fixing before Phase 4's decision-grade
+latency measurement.
+
+**Single hard-coded profile = "Vy"**, so the bot greeted Phong as "Vy". Correct
+by design — per-child profiles are a later phase, not a Phase 1 bug.
+
 ## State
 
-- Phase 1: **done** (server boots, `/health` ok, config asserted, two-turn relay
-  proven). Full audio round-trip needs real ADC → **user manual run step** before
-  Phase 3 end-to-end (documented in `backend/README.md`).
+- Phase 1: **DONE + live-validated** (server boots, `/health` ok, config asserted,
+  two-turn relay proven, **real audio round-trip confirmed with both kids**).
 - Phase 2 (Flutter macOS client): **blocked on installing Flutter** (not on the
-  machine — flagged in plan validation).
+  machine — flagged in plan validation). Target device confirmed: iPad/phone, so
+  Flutter (one codebase) is the right client; build macOS desktop first, port later.
 
 ## Carry-forward / open
 
-- Run the backend with real ADC + a 16kHz-mono WAV through `ws_test_client.py` to
-  confirm the live audio loop (transcripts + audio + latency) before Phase 3.
-- Phase 2 starts with: install Flutter SDK + macOS desktop toolchain, then a
-  ~30-min audio-plugin spike (16k PCM capture / 24k PCM playback) before UI.
+- **Phase 4:** fix the test-client latency anchor (audio can start before the
+  `end_utterance` flush) before decision-grade latency numbers.
+- **Phase 2 starts with:** install Flutter SDK + macOS desktop toolchain (+ Xcode
+  CLT), then a ~30-min audio-plugin spike (16k PCM capture / 24k PCM playback)
+  before building UI.
