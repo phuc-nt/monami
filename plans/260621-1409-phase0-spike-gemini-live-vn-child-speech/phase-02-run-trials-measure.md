@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: Run Trials & Measure
-status: in-progress
+status: completed
 priority: P1
 effort: 0.5-1d
 dependencies:

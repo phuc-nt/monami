@@ -98,6 +98,12 @@ SAFETY_CATEGORIES = [
     "HARM_CATEGORY_DANGEROUS_CONTENT",
 ]
 
+# Language hints for INPUT transcription. Auto-detect mis-hears Vietnamese
+# child speech (e.g. transcribed a real VN question as Korean). Hinting vi-VN +
+# en-US fixes the transcript AND still allows natural EN/VN code-switching
+# (hints guide, they don't hard-lock like language_codes, which is deprecated).
+TRANSCRIPTION_LANGUAGE_HINTS = ["vi-VN", "en-US"]
+
 
 def _require_sdk() -> None:
     if genai is None:
@@ -115,8 +121,13 @@ def _build_config():
             parts=[types.Part(text=SYSTEM_PROMPT)]
         ),
         # Enable transcription of BOTH sides so we can score understanding
-        # without retaining audio.
-        input_audio_transcription=types.AudioTranscriptionConfig(),
+        # without retaining audio. Hint the input language so VN child speech
+        # isn't mis-transcribed (see TRANSCRIPTION_LANGUAGE_HINTS).
+        input_audio_transcription=types.AudioTranscriptionConfig(
+            language_hints=types.LanguageHints(
+                language_codes=TRANSCRIPTION_LANGUAGE_HINTS
+            )
+        ),
         output_audio_transcription=types.AudioTranscriptionConfig(),
         safety_settings=[
             types.SafetySetting(category=cat, threshold="BLOCK_LOW_AND_ABOVE")
@@ -128,7 +139,8 @@ def _build_config():
 def _make_client():
     """Vertex AI client pinned to the spike project + region from env."""
     project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "asia-southeast1")
+    # Native-audio model is served only in us-central1 (verified live).
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
     if not project:
         sys.exit("GOOGLE_CLOUD_PROJECT not set. Copy .env.example to .env first.")
     return genai.Client(vertexai=True, project=project, location=location)

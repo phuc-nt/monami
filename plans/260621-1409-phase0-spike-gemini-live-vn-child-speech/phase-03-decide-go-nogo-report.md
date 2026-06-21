@@ -1,10 +1,11 @@
 ---
 phase: 3
-title: "Decide Go-NoGo & Report"
-status: pending
+title: Decide Go-NoGo & Report
+status: completed
 priority: P1
-effort: "0.5d"
-dependencies: [2]
+effort: 0.5d
+dependencies:
+  - 2
 ---
 
 # Phase 3: Decide Go-NoGo & Report

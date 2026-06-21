@@ -12,14 +12,19 @@ venv/
 __pycache__/
 *.pyc
 
-# === Spike: private/heavy artifacts (privacy: child speech) ===
-# Keep harness code + templates; ignore logs, audio, recorded samples.
+# === Private: child speech recordings — NEVER commit (privacy) ===
+# Keep harness code + templates; ignore ALL audio + transcribed logs everywhere.
+test/test-input-audio/
 spike/results/*.jsonl
 spike/results/audio_out/
 spike/samples/
 *.wav
 *.pcm
 *.aiff
+*.m4a
+*.mp3
+*.ogg
+*.caf
 
 # === Local agent config / instructions — not for remote ===
 .claude/

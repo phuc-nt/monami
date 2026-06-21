@@ -3,7 +3,7 @@ title: 'Phase 0 Spike: Validate Gemini Live for Vietnamese 5yo Child Speech'
 description: >-
   Throwaway 1-2 day spike to GO/NO-GO Architecture B (LiveKit + Gemini Live) by
   testing real VN 5yo child speech
-status: in-progress
+status: completed
 priority: P1
 created: 2026-06-21T00:00:00.000Z
 source: ../reports/brainstorm-260621-1409-bilingual-voice-companion-kids-report.md
@@ -24,8 +24,8 @@ source: ../reports/brainstorm-260621-1409-bilingual-voice-companion-kids-report.
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | [Setup Spike Harness](./phase-01-setup-spike-harness.md) | Completed |
-| 2 | [Run Trials & Measure](./phase-02-run-trials-measure.md) | In Progress |
-| 3 | [Decide Go-NoGo & Report](./phase-03-decide-go-nogo-report.md) | Pending |
+| 2 | [Run Trials & Measure](./phase-02-run-trials-measure.md) | Completed |
+| 3 | [Decide Go-NoGo & Report](./phase-03-decide-go-nogo-report.md) | Completed |
 
 ## Acceptance Criteria (GO gate)
 
