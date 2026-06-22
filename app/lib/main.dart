@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'profile_picker.dart';
 import 'robot_face.dart';
 import 'voice_controller.dart';
 
@@ -35,24 +36,42 @@ class MonamiApp extends StatelessWidget {
         colorSchemeSeed: Colors.indigo,
         useMaterial3: true,
       ),
-      home: const VoiceHome(),
+      home: Builder(
+        builder: (context) => ProfilePicker(
+          onPick: (child) {
+            final nav = Navigator.of(context);
+            // Guard a fast double-tap (likely with a 5-year-old): if we've
+            // already pushed VoiceHome, ignore the extra tap so we don't open a
+            // second session/socket/mic.
+            if (nav.canPop()) return;
+            nav.push(
+              MaterialPageRoute(builder: (_) => VoiceHome(child: child)),
+            );
+          },
+        ),
+      ),
     );
   }
 }
 
 class VoiceHome extends StatefulWidget {
-  const VoiceHome({super.key});
+  const VoiceHome({super.key, required this.child});
+
+  /// The selected child (drives the profile + theme color).
+  final ChildOption child;
+
   @override
   State<VoiceHome> createState() => _VoiceHomeState();
 }
 
 class _VoiceHomeState extends State<VoiceHome> {
-  final VoiceController _controller = VoiceController();
+  late final VoiceController _controller;
   bool _showTranscript = false; // dev-only chat view, hidden by default
 
   @override
   void initState() {
     super.initState();
+    _controller = VoiceController(profileId: widget.child.id);
     _controller.connect();
   }
 
@@ -67,7 +86,9 @@ class _VoiceHomeState extends State<VoiceHome> {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1016),
       appBar: AppBar(
-        title: const Text('Người bạn nhỏ'),
+        // Back arrow returns to the picker → disposes the controller → ends the
+        // session (backend then summarizes this child's memory).
+        title: Text('Bạn của ${widget.child.name}'),
         actions: [
           // Dev toggle: show/hide the transcript chat.
           IconButton(
@@ -91,7 +112,10 @@ class _VoiceHomeState extends State<VoiceHome> {
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 560),
-                      child: RobotFace(expression: _expressionFor(_controller)),
+                      child: RobotFace(
+                        expression: _expressionFor(_controller),
+                        litColor: widget.child.color,
+                      ),
                     ),
                   ),
                 ),

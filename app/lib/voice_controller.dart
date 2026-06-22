@@ -26,8 +26,15 @@ import 'voice_socket.dart';
 enum VoiceState { disconnected, idle, listening, speaking }
 
 class VoiceController extends ChangeNotifier {
-  VoiceController({String? url})
-      : _url = url ?? 'ws://127.0.0.1:8000/ws/voice';
+  /// [profileId] selects which child (vy/phong); it's passed to the backend as a
+  /// `?profile=` query param so the right profile + memory is loaded.
+  VoiceController({required String profileId, String? base})
+      : _url = _buildUrl(base ?? 'ws://127.0.0.1:8000/ws/voice', profileId);
+
+  static String _buildUrl(String base, String profileId) {
+    final sep = base.contains('?') ? '&' : '?';
+    return '$base${sep}profile=$profileId';
+  }
 
   final String _url;
   final AudioCapture _capture = AudioCapture();

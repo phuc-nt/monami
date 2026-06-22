@@ -1,11 +1,20 @@
 ---
 phase: 3
 title: "Flutter Profile Picker"
-status: pending
+status: completed
 priority: P2
 effort: "0.5d"
 dependencies: [1]
 ---
+
+> **Completed.** `app/lib/profile_picker.dart`: a 2-child picker (Vy/Phong) with
+> a happy robot face tinted per child + name; tapping pushes `VoiceHome(child)`,
+> which builds the controller with that `profileId` → `?profile=<id>` on the WS
+> URL. Back arrow pops → disposes the controller → ends the session (backend
+> summarizes). `VoiceController` ctor now `required String profileId`. Smoke test
+> updated; analyze clean; picker rendered to PNG + verified; macOS build OK.
+> Code review fix: guard a fast double-tap (`Navigator.canPop()`) so a child
+> can't open two sessions at once.
 
 # Phase 3: Flutter Profile Picker
 

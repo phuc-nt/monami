@@ -1,7 +1,7 @@
 ---
 title: "Two Profiles and Memory"
 description: "Per-child profiles (Vy + Phong) with persisted memory: pick a child in the app, the backend loads that child's profile + an AI-generated memory summary into the system prompt, and writes a fresh summary at session end. Local JSON storage."
-status: pending
+status: completed
 priority: P2
 created: 2026-06-22
 blockedBy: [260621-1933-phase1-core-voice-loop-direct-gemini]
@@ -61,7 +61,7 @@ Current touchpoints (from scout):
 |-------|------|--------|
 | 1 | [Backend Profiles And Storage](./phase-01-backend-profiles-and-storage.md) | ✅ Completed |
 | 2 | [Session Memory Summarization](./phase-02-session-memory-summarization.md) | ✅ Completed (live-validated) |
-| 3 | [Flutter Profile Picker](./phase-03-flutter-profile-picker.md) | Pending |
+| 3 | [Flutter Profile Picker](./phase-03-flutter-profile-picker.md) | ✅ Completed |
 
 ## Acceptance criteria (whole plan)
 
