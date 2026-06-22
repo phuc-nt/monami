@@ -202,13 +202,24 @@ class VoiceController extends ChangeNotifier {
     _setState(VoiceState.disconnected);
   }
 
+  /// Gracefully end the session: stop the mic and CLOSE the socket, awaiting the
+  /// close so the backend sees the disconnect promptly and summarizes this
+  /// child's memory now (not when the next session opens). Call before popping
+  /// the screen; dispose() is still safe to call afterwards.
+  Future<void> shutdown() async {
+    _happyTimer?.cancel();
+    await _capture.stop();
+    await _socket?.close(); // await: ensure the WS FIN flushes before we leave
+    await _events?.cancel();
+  }
+
   @override
   void dispose() {
     _happyTimer?.cancel();
+    _socket?.close();
     _events?.cancel();
     _capture.dispose();
     _playback.dispose();
-    _socket?.close();
     super.dispose();
   }
 }

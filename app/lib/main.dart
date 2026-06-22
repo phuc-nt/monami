@@ -75,69 +75,90 @@ class _VoiceHomeState extends State<VoiceHome> {
     _controller.connect();
   }
 
+  bool _leaving = false;
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
+  // Close the session (flush the WS) BEFORE leaving so the backend summarizes
+  // this child's memory now, then pop back to the picker.
+  Future<void> _leave() async {
+    if (_leaving) return;
+    _leaving = true;
+    await _controller.shutdown();
+    if (mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B1016),
-      appBar: AppBar(
-        // Back arrow returns to the picker → disposes the controller → ends the
-        // session (backend then summarizes this child's memory).
-        title: Text('Bạn của ${widget.child.name}'),
-        actions: [
-          // Dev toggle: show/hide the transcript chat.
-          IconButton(
-            tooltip: 'Hiện/ẩn transcript (dev)',
-            icon: Icon(_showTranscript ? Icons.subtitles : Icons.subtitles_off),
-            onPressed: () => setState(() => _showTranscript = !_showTranscript),
+    return PopScope(
+      // Intercept the back gesture/arrow: run shutdown() first, then pop.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0B1016),
+        appBar: AppBar(
+          // Back returns to the picker → ends the session → backend summarizes.
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _leave,
           ),
-        ],
-      ),
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          return Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // The robot face is the hero.
-                Expanded(
-                  flex: _showTranscript ? 3 : 5,
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 560),
-                      child: RobotFace(
-                        expression: _expressionFor(_controller),
-                        litColor: widget.child.color,
+          title: Text('Bạn của ${widget.child.name}'),
+          actions: [
+            // Dev toggle: show/hide the transcript chat.
+            IconButton(
+              tooltip: 'Hiện/ẩn transcript (dev)',
+              icon: Icon(_showTranscript ? Icons.subtitles : Icons.subtitles_off),
+              onPressed: () => setState(() => _showTranscript = !_showTranscript),
+            ),
+          ],
+        ),
+        body: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // The robot face is the hero.
+                  Expanded(
+                    flex: _showTranscript ? 3 : 5,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: RobotFace(
+                          expression: _expressionFor(_controller),
+                          litColor: widget.child.color,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                _StatusLine(
-                  state: _controller.state,
-                  error: _controller.error,
-                  onReconnect: _controller.reconnect,
-                ),
-                if (_showTranscript) ...[
                   const SizedBox(height: 12),
-                  Expanded(
-                    flex: 2,
-                    child: _TranscriptView(turns: _controller.turns),
+                  _StatusLine(
+                    state: _controller.state,
+                    error: _controller.error,
+                    onReconnect: _controller.reconnect,
                   ),
+                  if (_showTranscript) ...[
+                    const SizedBox(height: 12),
+                    Expanded(
+                      flex: 2,
+                      child: _TranscriptView(turns: _controller.turns),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  _TalkButton(controller: _controller),
                 ],
-                const SizedBox(height: 20),
-                _TalkButton(controller: _controller),
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
