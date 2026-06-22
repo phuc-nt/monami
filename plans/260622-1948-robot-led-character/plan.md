@@ -1,7 +1,7 @@
 ---
 title: "Robot LED Character"
 description: "Cute pixel-art LED robot face for the voice companion: expressions driven by voice state (idle/listening/speaking/disconnected + a happy pulse). Pure Flutter CustomPainter, no Rive."
-status: pending
+status: completed
 priority: P2
 created: 2026-06-22
 blockedBy: [260621-1933-phase1-core-voice-loop-direct-gemini]
@@ -38,7 +38,7 @@ small dev toggle to show it.
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | [Robot Face Painter](./phase-01-robot-face-painter.md) | ✅ Completed |
-| 2 | [Wire To Voice States](./phase-02-wire-to-voice-states.md) | Pending |
+| 2 | [Wire To Voice States](./phase-02-wire-to-voice-states.md) | ✅ Completed |
 
 ## Acceptance criteria (whole plan)
 

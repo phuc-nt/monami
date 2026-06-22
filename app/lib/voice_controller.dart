@@ -54,6 +54,13 @@ class VoiceController extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  // A short-lived "happy" effect right after a turn completes — a UI-only
+  // transient, deliberately NOT a VoiceState (it's an expression, not a state).
+  bool _happyPulse = false;
+  bool get happyPulse => _happyPulse;
+  Timer? _happyTimer;
+  static const _happyPulseDuration = Duration(milliseconds: 900);
+
   /// Connect to the backend and prepare playback. Call once at startup.
   Future<void> connect() async {
     _error = null;
@@ -134,6 +141,8 @@ class VoiceController extends ChangeNotifier {
       case TurnComplete():
         // Backend finished SENDING this reply. Let queued audio play out;
         // the next utterance starts a fresh Turn so history reads top-to-bottom.
+        // The happy pulse fires when playback DRAINS (the bot stops talking),
+        // not here — see _onPlaybackDrained.
         _playback.endTurn();
         _startNewTurnOnNextInput = true;
       case SocketError(:final message):
@@ -151,12 +160,21 @@ class VoiceController extends ChangeNotifier {
     return _turns.last;
   }
 
+  void _triggerHappyPulse() {
+    _happyPulse = true;
+    notifyListeners();
+    _happyTimer?.cancel();
+    _happyTimer = Timer(_happyPulseDuration, () {
+      _happyPulse = false;
+      notifyListeners();
+    });
+  }
+
   void _onPlaybackDrained() {
-    // A reply finished playing. If the mic is closed, we're fully idle.
-    if (!_micOpen && _state == VoiceState.speaking) {
-      _setState(VoiceState.idle);
-    } else if (_micOpen && _state == VoiceState.speaking) {
-      _setState(VoiceState.listening);
+    // A reply finished playing — celebrate, then settle to the live state.
+    if (_state == VoiceState.speaking) {
+      _triggerHappyPulse();
+      _setState(_micOpen ? VoiceState.listening : VoiceState.idle);
     }
   }
 
@@ -179,6 +197,7 @@ class VoiceController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _happyTimer?.cancel();
     _events?.cancel();
     _capture.dispose();
     _playback.dispose();

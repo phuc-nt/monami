@@ -1,10 +1,25 @@
-// Minimal push-to-talk voice client (Phase 2). Hold the button to talk; release
-// to hear the companion reply. No character/polish yet — just enough to talk,
-// listen, and see the transcripts (dev visibility). Replaces the audio spike.
+// Voice companion home: a cute LED robot face the child talks to. Tap the button
+// to talk; the face reacts to the live voice state (listening / talking / happy /
+// sleepy). The transcript chat is hidden by default behind a small dev toggle.
 
 import 'package:flutter/material.dart';
 
+import 'robot_face.dart';
 import 'voice_controller.dart';
+
+/// Map the voice state (+ happy pulse) to a robot expression. The happy pulse
+/// wins over a connected state, but a disconnect (sleepy) always shows through.
+RobotExpression _expressionFor(VoiceController c) {
+  if (c.happyPulse && c.state != VoiceState.disconnected) {
+    return RobotExpression.happy;
+  }
+  return switch (c.state) {
+    VoiceState.disconnected => RobotExpression.sleepy,
+    VoiceState.idle => RobotExpression.calm,
+    VoiceState.listening => RobotExpression.attentive,
+    VoiceState.speaking => RobotExpression.talking,
+  };
+}
 
 void main() {
   runApp(const MonamiApp());
@@ -33,6 +48,7 @@ class VoiceHome extends StatefulWidget {
 
 class _VoiceHomeState extends State<VoiceHome> {
   final VoiceController _controller = VoiceController();
+  bool _showTranscript = false; // dev-only chat view, hidden by default
 
   @override
   void initState() {
@@ -49,7 +65,18 @@ class _VoiceHomeState extends State<VoiceHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Người bạn nhỏ')),
+      backgroundColor: const Color(0xFF0B1016),
+      appBar: AppBar(
+        title: const Text('Người bạn nhỏ'),
+        actions: [
+          // Dev toggle: show/hide the transcript chat.
+          IconButton(
+            tooltip: 'Hiện/ẩn transcript (dev)',
+            icon: Icon(_showTranscript ? Icons.subtitles : Icons.subtitles_off),
+            onPressed: () => setState(() => _showTranscript = !_showTranscript),
+          ),
+        ],
+      ),
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
@@ -58,14 +85,30 @@ class _VoiceHomeState extends State<VoiceHome> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _StatusBanner(
+                // The robot face is the hero.
+                Expanded(
+                  flex: _showTranscript ? 3 : 5,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: RobotFace(expression: _expressionFor(_controller)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _StatusLine(
                   state: _controller.state,
                   error: _controller.error,
                   onReconnect: _controller.reconnect,
                 ),
-                const SizedBox(height: 24),
-                Expanded(child: _TranscriptView(turns: _controller.turns)),
-                const SizedBox(height: 24),
+                if (_showTranscript) ...[
+                  const SizedBox(height: 12),
+                  Expanded(
+                    flex: 2,
+                    child: _TranscriptView(turns: _controller.turns),
+                  ),
+                ],
+                const SizedBox(height: 20),
                 _TalkButton(controller: _controller),
               ],
             ),
@@ -76,8 +119,11 @@ class _VoiceHomeState extends State<VoiceHome> {
   }
 }
 
-class _StatusBanner extends StatelessWidget {
-  const _StatusBanner({required this.state, this.error, this.onReconnect});
+/// A slim status line under the robot face: a short label + (on disconnect) a
+/// reconnect button, plus any error text. The face carries the main expression;
+/// this is just words for the grown-up.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.state, this.error, this.onReconnect});
   final VoiceState state;
   final String? error;
   final VoidCallback? onReconnect;
@@ -86,34 +132,27 @@ class _StatusBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (state) {
       VoiceState.disconnected => ('Mất kết nối', Colors.grey),
-      VoiceState.idle => ('Sẵn sàng — chạm để nói', Colors.green),
-      VoiceState.listening => ('Đang nghe bé…', Colors.red),
-      VoiceState.speaking => ('Đang trả lời…', Colors.blue),
+      VoiceState.idle => ('Sẵn sàng — chạm để nói', Colors.greenAccent),
+      VoiceState.listening => ('Đang nghe bé…', Colors.redAccent),
+      VoiceState.speaking => ('Đang trả lời…', Colors.lightBlueAccent),
     };
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.circle, size: 12, color: color),
-              const SizedBox(width: 8),
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-              if (state == VoiceState.disconnected && onReconnect != null) ...[
-                const SizedBox(width: 12),
-                TextButton(onPressed: onReconnect, child: const Text('Kết nối lại')),
-              ],
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.circle, size: 10, color: color),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+            if (state == VoiceState.disconnected && onReconnect != null) ...[
+              const SizedBox(width: 12),
+              TextButton(onPressed: onReconnect, child: const Text('Kết nối lại')),
             ],
-          ),
+          ],
         ),
         if (error != null) ...[
-          const SizedBox(height: 8),
-          Text(error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+          const SizedBox(height: 6),
+          Text(error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
         ],
       ],
     );

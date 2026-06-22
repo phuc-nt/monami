@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Wire To Voice States"
-status: pending
+status: completed
 priority: P2
 effort: "0.5d"
 dependencies: [1]
@@ -64,11 +64,33 @@ dev toggle.
 
 ## Success Criteria
 
-- [ ] Face expression tracks the live voice state in real time.
-- [ ] A happy expression plays once when the child finishes a turn, then reverts.
-- [ ] Transcript hidden by default; dev toggle shows/hides it.
-- [ ] Disconnect shows the sleepy face + a working reconnect affordance.
-- [ ] Voice loop unaffected (multi-turn still smooth); `flutter analyze` clean.
+- [x] Face expression tracks the live voice state in real time
+      (disconnected→sleepy, idle→calm, listening→attentive, speaking→talking).
+- [x] A happy expression plays once after a reply finishes PLAYING, then reverts.
+- [x] Transcript hidden by default; dev toggle (AppBar icon) shows/hides it.
+- [x] Disconnect shows the sleepy face + a working "Kết nối lại" affordance.
+- [x] Voice loop unaffected (additive change only); `flutter analyze` clean;
+      `flutter test` passes; macOS build succeeds.
+
+## Completion Notes
+
+`main.dart`: `_expressionFor(controller)` maps VoiceState (+ happy pulse) to a
+`RobotExpression`; the `RobotFace` is the screen hero (Expanded), `_StatusLine`
+(slim) sits under it with the reconnect button, transcript is hidden behind an
+AppBar dev toggle (`_showTranscript`).
+
+`voice_controller.dart` (additive only): `_happyPulse` bool + getter + a 900ms
+`Timer`; `_triggerHappyPulse()` is fired from `_onPlaybackDrained` (when the reply
+finishes PLAYING — moved here from TurnComplete per code review, so happy doesn't
+flash mid-sentence on long replies). Timer cancelled in dispose. No existing state
+transition changed.
+
+Code review: clean (no Critical/High). Fixes applied: (M1) happy trigger moved to
+playback-drain; (edge) happy no longer overrides the disconnected/sleepy face.
+
+Verified without a mic: smoke + render tests pass, full-screen layout confirmed
+via a PNG render, macOS build OK. Live "face reacts to a real conversation" is a
+user run step.
 
 ## Risk Assessment
 
