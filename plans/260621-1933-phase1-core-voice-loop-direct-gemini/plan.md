@@ -1,7 +1,7 @@
 ---
 title: "Phase 1: Core Voice Loop (Direct Gemini Live, no LiveKit)"
 description: "Working bilingual EN/VN voice loop on Flutter desktop ↔ local Python backend ↔ Gemini Live native-audio. No LiveKit."
-status: in-progress
+status: completed
 priority: P1
 created: 2026-06-21
 source: ../reports/phase0-go-nogo-decision-gemini-live-vn-child-speech-report.md
@@ -59,14 +59,26 @@ audio plugins disappoint.)
 | 1 | [Local Backend Gemini Live Relay](./phase-01-local-backend-gemini-live-relay.md) | ✅ Completed |
 | 2 | [Flutter Voice Client](./phase-02-flutter-voice-client.md) | ✅ Completed |
 | 3 | [Integrate Bilingual Voice Loop](./phase-03-integrate-bilingual-voice-loop.md) | ◐ Largely done in P2 (see note) |
-| 4 | [Validate Slow-Speech Gate and Latency](./phase-04-validate-slow-speech-gate-and-latency.md) | Pending |
+| 4 | [Validate Slow-Speech Gate and Latency](./phase-04-validate-slow-speech-gate-and-latency.md) | ✖ Cancelled (decision made) |
 
 > **Phase 3 note:** The integration goals (multi-turn conversation, bilingual
 > EN/VN, hard-coded profile felt, warm safe tone, natural turn-taking) were all
 > exercised and confirmed during the Phase 2 live test — 10+ continuous turns,
-> profile reflected, smooth. What remains explicitly for a focused Phase 3 pass:
-> a deliberate EN-only turn + a gentle off-topic safety probe, and tone tuning if
-> needed. Phase 4 (latency/slow-speech gate) is the main remaining work.
+> profile reflected, smooth. Remaining nice-to-haves: a deliberate EN-only turn +
+> a gentle off-topic safety probe + tone tuning (can fold into later work).
+>
+> **Phase 4 CANCELLED — no LiveKit (decision).** Phase 4 existed to answer one
+> question: does Gemini's VAD cut off slow/hesitant kids (→ would justify LiveKit)?
+> The Phase 2 live test answered it: 10+ continuous real-voice turns, no cutoffs,
+> first-audio ~500ms (well under the 1.2s target), server VAD split turns
+> correctly. Adding LiveKit would add a network hop (+50-150ms) and an extra
+> service to solve a problem that did not occur → **YAGNI: direct Gemini Live
+> stays.** Reversible: if real daily use shows cutoffs, LiveKit can be added then.
+> Caveat (accepted): live testing used an adult on a Bluetooth mic, not a child
+> doing long mid-sentence pauses on-device; risk judged low (Phase 0 already
+> validated the kids' own voices) and easily reversible for a 2-kid personal app.
+> The latency-anchor fix (dev measurement) is deferred — not needed for the
+> no-LiveKit decision; revisit only if precise numbers are wanted later.
 
 ## Acceptance criteria (whole phase)
 

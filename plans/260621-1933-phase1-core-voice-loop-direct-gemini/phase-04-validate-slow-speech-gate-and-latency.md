@@ -1,13 +1,24 @@
 ---
 phase: 4
 title: "Validate Slow-Speech Gate and Latency"
-status: pending
+status: cancelled
 priority: P1
 effort: "0.5d"
 dependencies: [3]
 ---
 
 # Phase 4: Validate Slow-Speech Gate and Latency
+
+> **CANCELLED — decision made (no LiveKit).** This phase existed to decide whether
+> Gemini's VAD cuts off slow/hesitant kids (which would justify adding LiveKit's
+> turn-detector). The Phase 2 live test answered it: 10+ continuous real-voice
+> turns with no cutoffs and ~500ms first-audio (well under the 1.2s target), with
+> server VAD splitting turns correctly. → Keep the direct Gemini Live path; do not
+> add LiveKit (YAGNI). Reversible if real daily use later shows cutoffs. The
+> latency-anchor fix is deferred (not needed for this decision). Original phase
+> content kept below for reference only.
+
+---
 
 ## Overview
 
