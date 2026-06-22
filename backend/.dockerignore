@@ -1,0 +1,23 @@
+# Keep the image small + never bake in secrets / private data / dev cruft.
+.env
+.env.*
+!.env.example
+profiles/
+.pyenv-backend/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Dev-only / not needed at runtime.
+scripts/
+README.md
+deploy.md
+*.md
+.gitignore
+
+# Any audio must never enter the image.
+*.wav
+*.pcm
+*.m4a
+*.mp3

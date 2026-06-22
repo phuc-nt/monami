@@ -10,7 +10,7 @@ verified in the Phase 0 spike: `us-central1`, `gemini-live-2.5-flash-native-audi
 
 ## Prerequisites
 
-- Python 3.11+ (`python3 --version`).
+- Python 3.11+ (`python3 --version`); the container pins 3.13.
 - A GCP project with **Vertex AI** + **Gemini Live** enabled (Phase 0 used
   `monami-kids-spike`).
 - `gcloud` CLI authenticated for Application Default Credentials:
@@ -69,10 +69,26 @@ ffmpeg -i in.any -ar 16000 -ac 1 -sample_fmt s16 utterance_16k_mono.wav
 Two children exist (`vy`, `phong`). The client picks one and connects with a
 query param: `ws://127.0.0.1:8000/ws/voice?profile=phong` (defaults to `vy` if
 absent/unknown). The backend loads that child's profile + a stored memory summary
-into the system prompt. Per-child memory lives in `backend/profiles/<id>.json`
-(text only — **gitignored, private, never committed**; no audio).
+into the system prompt.
+
+**Memory backend** (`MEMORY_BACKEND` env):
+- `json` (default, local dev) — one file per child at `backend/profiles/<id>.json`.
+- `firestore` (cloud) — one doc per child in the `child_memory` collection (uses
+  ADC / the Cloud Run service account; needs the Firestore API enabled).
+
+Either way it's text only — **gitignored / locked to the SA, private, never
+committed; no audio.**
 
 Test a specific child: `python scripts/ws_test_client.py utt.wav --profile phong`.
+
+## Container (Cloud Run)
+
+`Dockerfile` packages the app to run `uvicorn main:app --host 0.0.0.0 --port $PORT`
+(Cloud Run sets `$PORT`). Auth in the cloud is the service account (ADC) — no key
+file is baked into the image. `.dockerignore` keeps out `.env`, `profiles/`, the
+venv, caches, tests, and any audio. The deploy itself (service account, roles,
+Firestore enable, `gcloud run deploy`) is a separate phase; build via Cloud Build
+(`gcloud run deploy --source .`) so local Docker isn't required.
 
 ## Wire protocol (client ↔ backend)
 

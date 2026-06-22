@@ -39,6 +39,19 @@ logger = logging.getLogger("backend")
 app = FastAPI(title="monami voice backend", version="0.1.0")
 
 
+@app.on_event("startup")
+async def _log_startup_config() -> None:
+    # Surface the memory backend at boot so a misconfig (e.g. on Cloud Run) is
+    # obvious in the logs rather than silently losing memory.
+    import profile_store
+
+    logger.info(
+        "startup: memory_backend=%s auth=%s",
+        profile_store._backend(),
+        "on" if os.environ.get("MONAMI_AUTH_TOKEN") else "off (open)",
+    )
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
