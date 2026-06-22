@@ -109,8 +109,12 @@ async def _collect_response(ws, t_user_end: float) -> dict:
 
 async def run(args: argparse.Namespace) -> None:
     pcm = _read_wav_pcm(Path(args.wav))
-    print(f"Connecting to {args.url} …")
-    async with websockets.connect(args.url, max_size=None) as ws:
+    url = args.url
+    if args.profile:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}profile={args.profile}"
+    print(f"Connecting to {url} …")
+    async with websockets.connect(url, max_size=None) as ws:
         print(f"Streaming {args.wav} ({len(pcm)} bytes)…")
         t_user_end = await _stream_audio(ws, pcm)
         result = await _collect_response(ws, t_user_end)
@@ -136,6 +140,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument(
         "--save-audio", metavar="OUT.wav", help="save the response audio to this path"
+    )
+    p.add_argument(
+        "--profile", help="child profile id (e.g. vy, phong); added as ?profile="
     )
     return p.parse_args(argv)
 

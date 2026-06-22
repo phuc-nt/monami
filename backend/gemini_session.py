@@ -35,6 +35,9 @@ from google import genai
 from google.genai import types
 
 import gemini_session_config as cfg
+from child_profile import get_profile
+from memory_summarizer import summarize
+from profile_store import load_memory, save_memory
 
 logger = logging.getLogger("gemini_session")
 
@@ -94,8 +97,11 @@ async def _uplink(ws, session) -> None:
                 await _send_trailing_silence(session)
 
 
-async def _downlink(ws, session) -> None:
+async def _downlink(ws, session, transcript: list[tuple[str, str]]) -> None:
     """Gemini -> client: forward audio (binary) + transcripts / turn_complete (JSON).
+
+    Appends each transcript line (speaker, text) to `transcript` so the session
+    can be summarized into memory on teardown.
 
     The SDK's session.receive() generator yields one turn then ends at the first
     turn_complete. For a long-lived multi-turn conversation we re-enter it per
@@ -110,9 +116,13 @@ async def _downlink(ws, session) -> None:
             if sc is None:
                 continue
             if sc.input_transcription and sc.input_transcription.text:
-                await _send_json(ws, {"type": "in_transcript", "text": sc.input_transcription.text})
+                text = sc.input_transcription.text
+                transcript.append(("Bé/Child", text))
+                await _send_json(ws, {"type": "in_transcript", "text": text})
             if sc.output_transcription and sc.output_transcription.text:
-                await _send_json(ws, {"type": "out_transcript", "text": sc.output_transcription.text})
+                text = sc.output_transcription.text
+                transcript.append(("Bạn/Companion", text))
+                await _send_json(ws, {"type": "out_transcript", "text": text})
             if sc.model_turn:
                 for part in sc.model_turn.parts:
                     if part.inline_data and part.inline_data.data:
@@ -124,21 +134,34 @@ async def _downlink(ws, session) -> None:
             return
 
 
-async def run_session(ws) -> None:
+async def run_session(ws, profile_id: str | None = None) -> None:
     """Open a Gemini Live session for one client connection and relay both ways.
 
-    Spawns the uplink + downlink pumps; when either finishes (client disconnect
-    or session end) the other is cancelled and the Live session is closed.
+    Resolves the selected child (profile_id), loads their remembered memory, and
+    builds the per-child config. Spawns the uplink + downlink pumps; when either
+    finishes (client disconnect or session end) the other is cancelled and the
+    Live session is closed.
     """
+    profile = get_profile(profile_id)
+    if profile_id and profile_id != profile.profile_id:
+        logger.warning("unknown profile id %r — falling back to %s", profile_id, profile.profile_id)
+    memory_text = load_memory(profile.profile_id)
+
     client = _make_client()
     model = cfg.model_id()
-    config = cfg.build_live_connect_config()
+    config = cfg.build_live_connect_config(profile, memory_text)
 
-    logger.info("opening Gemini Live session: model=%s", model)
+    logger.info(
+        "opening Gemini Live session: model=%s profile=%s (memory=%s)",
+        model, profile.profile_id, "yes" if memory_text else "none",
+    )
+    transcript: list[tuple[str, str]] = []
     try:
         async with client.aio.live.connect(model=model, config=config) as session:
             uplink = asyncio.create_task(_uplink(ws, session), name="uplink")
-            downlink = asyncio.create_task(_downlink(ws, session), name="downlink")
+            downlink = asyncio.create_task(
+                _downlink(ws, session, transcript), name="downlink"
+            )
             done, pending = await asyncio.wait(
                 {uplink, downlink}, return_when=asyncio.FIRST_COMPLETED
             )
@@ -159,6 +182,49 @@ async def run_session(ws) -> None:
             await _send_json(ws, {"type": "error", "message": "session error"})
     finally:
         logger.info("Gemini Live session closed")
+        # Best-effort: fold this session into the child's memory. Bounded by a
+        # timeout so teardown can't hang. The client has already disconnected by
+        # now; this lingers the server task up to the timeout — fine at this
+        # app's scale (2 kids). Detach it if concurrency ever grows.
+        await _update_memory(client, profile.profile_id, memory_text, transcript)
+
+
+# A session shorter than this (few transcript lines) isn't worth summarizing —
+# avoids overwriting a good memory with an empty/greeting-only exchange.
+_MIN_TRANSCRIPT_LINES = 2
+_SUMMARY_TIMEOUT_S = 20
+
+
+async def _update_memory(
+    client: genai.Client,
+    profile_id: str,
+    prior_summary: str,
+    transcript: list[tuple[str, str]],
+) -> None:
+    """Summarize the session into the child's memory and save it. Best-effort."""
+    if len(transcript) < _MIN_TRANSCRIPT_LINES:
+        return
+    transcript_text = "\n".join(f"{who}: {text}" for who, text in transcript)
+    try:
+        # summarize() already returns the prior summary on its own errors; the
+        # only thing that can raise here is the outer timeout.
+        new_summary = await asyncio.wait_for(
+            summarize(client, prior_summary, transcript_text),
+            timeout=_SUMMARY_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("memory summary timed out for %s; keeping prior", profile_id)
+        return
+    if new_summary and new_summary != prior_summary:
+        save_memory(profile_id, new_summary, updated_at=_now_iso())
+        logger.info("memory updated for %s", profile_id)
+
+
+def _now_iso() -> str:
+    # Imported lazily so the module has no import-time clock dependency.
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
 
 
 # --- WebSocket abstraction --------------------------------------------------

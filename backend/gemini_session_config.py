@@ -23,7 +23,7 @@ import os
 
 from google.genai import types
 
-from child_profile import DEFAULT_PROFILE
+from child_profile import ChildProfile
 
 # --- Audio format (Gemini Live: 16 kHz mono PCM in, 24 kHz mono PCM out). ---
 INPUT_SAMPLE_RATE = 16_000
@@ -70,9 +70,22 @@ An toàn / Safety:
 """
 
 
-def build_system_prompt() -> str:
-    """Base persona + the hard-coded child profile block."""
-    return f"{_BASE_SYSTEM_PROMPT}\n{DEFAULT_PROFILE.to_prompt_text()}\n"
+def build_system_prompt(profile: ChildProfile, memory_text: str = "") -> str:
+    """Base persona + the selected child's profile + (optional) remembered memory.
+
+    memory_text is a short AI-generated summary of past sessions (see
+    memory_summarizer / profile_store); omitted when empty (first session).
+    """
+    parts = [_BASE_SYSTEM_PROMPT, "", profile.to_prompt_text()]
+    if memory_text.strip():
+        parts += [
+            "",
+            "Điều bạn còn nhớ về bé / What you remember about the child:",
+            memory_text.strip(),
+            "Hãy dùng những điều này một cách tự nhiên, ấm áp khi hợp lý. "
+            "Use these naturally and warmly when it fits.",
+        ]
+    return "\n".join(parts) + "\n"
 
 
 def input_audio_mime_type() -> str:
@@ -90,6 +103,13 @@ def model_id() -> str:
     return model
 
 
+def summary_model_id() -> str:
+    """Cheap TEXT model for end-of-session memory summaries (not the live model).
+    Override with MEMORY_SUMMARY_MODEL. Default is a current Vertex flash text
+    model (2.0-flash was retired 2026-06; do not revert to it)."""
+    return os.environ.get("MEMORY_SUMMARY_MODEL", "gemini-2.5-flash")
+
+
 def project_and_location() -> tuple[str, str]:
     """GCP project + region for the Vertex AI client. Region defaults to the
     only one that serves native audio (us-central1)."""
@@ -102,13 +122,16 @@ def project_and_location() -> tuple[str, str]:
     return project, location
 
 
-def build_live_connect_config() -> types.LiveConnectConfig:
+def build_live_connect_config(
+    profile: ChildProfile, memory_text: str = ""
+) -> types.LiveConnectConfig:
     """LiveConnectConfig: audio-only out, both transcriptions, strict safety,
-    bilingual system prompt + hard-coded profile. Mirrors the Phase 0 spike."""
+    bilingual system prompt for the selected child + their remembered memory.
+    Mirrors the Phase 0 spike (config) with per-child personalization added."""
     return types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         system_instruction=types.Content(
-            parts=[types.Part(text=build_system_prompt())]
+            parts=[types.Part(text=build_system_prompt(profile, memory_text))]
         ),
         # Transcribe BOTH sides: input for dev visibility + language hinting,
         # output so the client can show what the companion said.

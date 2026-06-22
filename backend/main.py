@@ -47,9 +47,11 @@ async def health() -> dict[str, str]:
 @app.websocket("/ws/voice")
 async def ws_voice(websocket: WebSocket) -> None:
     await websocket.accept()
-    logger.info("client connected: %s", websocket.client)
+    # Which child is talking, e.g. ws://…/ws/voice?profile=vy (defaults if absent).
+    profile_id = websocket.query_params.get("profile")
+    logger.info("client connected: %s (profile=%s)", websocket.client, profile_id)
     try:
-        await run_session(_StarletteWsAdapter(websocket))
+        await run_session(_StarletteWsAdapter(websocket), profile_id)
     except WebSocketDisconnect:
         logger.info("client disconnected")
     finally:

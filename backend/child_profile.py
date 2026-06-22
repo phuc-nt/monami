@@ -1,9 +1,10 @@
-"""One hard-coded child profile for Phase 1.
+"""Child profiles: a small registry of the children the companion talks to.
 
-Phase 1 ships a single profile injected into the system prompt at session start
-(memory = system-prompt context-stuffing, per the Phase 0 decision). Later phases
-replace this with per-child profiles + persisted memory; keep the shape small and
-plain so swapping the source out is trivial.
+Two children for now (Vy + Phong), each a `ChildProfile`. The profile is the
+fixed, hand-set part of who the child is (name/age/interests); the changing part
+— what the companion remembers from past sessions — is stored separately and
+loaded by `profile_store`. Keep profile text short and concrete: long text makes
+the system prompt brittle.
 """
 
 from __future__ import annotations
@@ -13,13 +14,9 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class ChildProfile:
-    """Minimal facts the companion should feel in its replies.
+    """Minimal fixed facts the companion should feel in its replies."""
 
-    Keep this short and concrete — long profile text makes the system prompt
-    brittle. Name + a couple of interests is enough for the companion to greet
-    the child and reference something they like.
-    """
-
+    profile_id: str
     name: str
     age: int
     interests: list[str] = field(default_factory=list)
@@ -37,9 +34,32 @@ class ChildProfile:
         )
 
 
-# The single Phase 1 profile. Edit here to change who the companion talks to.
-DEFAULT_PROFILE = ChildProfile(
-    name="Vy",
-    age=5,
-    interests=["Elsa", "công chúa / princesses", "kể chuyện / stories"],
-)
+# The children. Keys are the stable profile ids used by the client + storage.
+PROFILES: dict[str, ChildProfile] = {
+    "vy": ChildProfile(
+        profile_id="vy",
+        name="Vy",
+        age=5,
+        interests=["Elsa", "công chúa / princesses", "kể chuyện / stories"],
+    ),
+    "phong": ChildProfile(
+        profile_id="phong",
+        name="Phong",
+        age=5,
+        interests=["khủng long / dinosaurs", "xe ô tô / cars", "khám phá / exploring"],
+    ),
+}
+
+# Used when no/unknown profile id is supplied (with a logged warning at the call site).
+DEFAULT_PROFILE_ID = "vy"
+
+
+def get_profile(profile_id: str | None) -> ChildProfile:
+    """Resolve a profile id to a ChildProfile, falling back to the default.
+
+    Returns the default profile for None or an unknown id; callers should log a
+    warning when they pass something that didn't resolve.
+    """
+    if profile_id and profile_id in PROFILES:
+        return PROFILES[profile_id]
+    return PROFILES[DEFAULT_PROFILE_ID]

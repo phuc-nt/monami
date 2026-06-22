@@ -64,10 +64,21 @@ ffmpeg -i in.any -ar 16000 -ac 1 -sample_fmt s16 utterance_16k_mono.wav
 > Child audio stays local. Do not commit input WAVs — the repo `.gitignore`
 > blocks `*.wav`/`*.m4a` everywhere.
 
+## Profiles & memory
+
+Two children exist (`vy`, `phong`). The client picks one and connects with a
+query param: `ws://127.0.0.1:8000/ws/voice?profile=phong` (defaults to `vy` if
+absent/unknown). The backend loads that child's profile + a stored memory summary
+into the system prompt. Per-child memory lives in `backend/profiles/<id>.json`
+(text only — **gitignored, private, never committed**; no audio).
+
+Test a specific child: `python scripts/ws_test_client.py utt.wav --profile phong`.
+
 ## Wire protocol (client ↔ backend)
 
 - **client → server**
   - binary frame = raw 16 kHz mono PCM audio chunk
+  - connect URL may carry `?profile=<id>` (which child)
   - `{"type":"end_utterance"}` = push-to-talk released → backend flushes the turn
 - **server → client**
   - binary frame = 24 kHz mono PCM response audio
@@ -82,5 +93,6 @@ ffmpeg -i in.any -ar 16000 -ac 1 -sample_fmt s16 utterance_16k_mono.wav
 | `main.py` | FastAPI app: `/ws/voice` + `/health`; Starlette WS adapter |
 | `gemini_session.py` | per-connection relay: uplink/downlink pumps |
 | `gemini_session_config.py` | verified Gemini Live config (do not change without re-validating) |
-| `child_profile.py` | one hard-coded profile → system-prompt text |
-| `scripts/ws_test_client.py` | local WS test client (proves the loop) |
+| `child_profile.py` | profile registry (Vy, Phong) → system-prompt text |
+| `profile_store.py` | per-child memory load/save (local JSON in `profiles/`) |
+| `scripts/ws_test_client.py` | local WS test client (proves the loop; `--profile`) |

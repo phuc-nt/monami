@@ -16,6 +16,9 @@ __pycache__/
 # === Private: child speech recordings — NEVER commit (privacy) ===
 # Keep harness code + templates; ignore ALL audio + transcribed logs everywhere.
 test/test-input-audio/
+
+# Per-child memory (names + chat summaries) — private, local only. NEVER commit.
+backend/profiles/
 spike/results/*.jsonl
 spike/results/audio_out/
 spike/samples/
