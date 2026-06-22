@@ -33,26 +33,28 @@ Future<void> _renderExpression(WidgetTester tester, RobotExpression e) async {
       ),
     ),
   );
-  await tester.pump(const Duration(milliseconds: 100));
 
   final boundary =
       key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-  // toImage() + toByteData() are real async work; run them outside the fake-async
-  // test zone so they complete despite the face's repeating animation ticker.
-  await tester.runAsync(() async {
-    final image = await boundary.toImage(pixelRatio: 2.0);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    // Assert the painter produced a real (non-empty) image — catches paint or
-    // layout exceptions for this expression.
-    expect(bytes, isNotNull, reason: 'no image for ${e.name}');
-    expect(bytes!.lengthInBytes, greaterThan(0), reason: 'empty image for ${e.name}');
-    if (Platform.environment.containsKey('DUMP_ROBOT_FACE')) {
-      final dir = Directory('build')..createSync(recursive: true);
-      File('${dir.path}/robot_face_${e.name}.png')
-          .writeAsBytesSync(bytes.buffer.asUint8List());
-    }
-    image.dispose();
-  });
+
+  // Capture a few animation frames so movement (blink, mouth, hop, dart) is
+  // visible and the painter is exercised across phases.
+  for (var frame = 0; frame < 3; frame++) {
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      expect(bytes, isNotNull, reason: 'no image for ${e.name}');
+      expect(bytes!.lengthInBytes, greaterThan(0),
+          reason: 'empty image for ${e.name}');
+      if (Platform.environment.containsKey('DUMP_ROBOT_FACE')) {
+        final dir = Directory('build')..createSync(recursive: true);
+        File('${dir.path}/robot_face_${e.name}_$frame.png')
+            .writeAsBytesSync(bytes.buffer.asUint8List());
+      }
+      image.dispose();
+    });
+  }
 }
 
 void main() {

@@ -1,9 +1,16 @@
 // Cute pixel-art LED robot face. Pure Flutter CustomPainter — no Rive, no
-// assets, no audio lip-sync. The face is an LED dot-matrix "screen": every cell
-// is drawn as a dim dot, and lit cells (eyes + mouth) form an expression.
+// assets, no audio lip-sync. The face is a 32x20 LED dot-matrix "screen": every
+// cell is a dim dot, lit cells (eyes + mouth) form an expression.
 //
-// Phase 1 is visual only: RobotFace renders one of five expressions and animates
-// blink (calm) + mouth (talking). Phase 2 maps the live VoiceState to these.
+// Shapes are computed procedurally in grid space (eye = rounded block or arc,
+// mouth = arc/line) so they stay smooth at this resolution and are easy to
+// animate. Animations (all derived from one controller):
+//   - blink: eyes briefly squash to a line — every expression, on its own rhythm
+//   - eye darting: eyes glance left/right slightly when idle/attentive
+//   - idle breathing: overall LED brightness gently pulses so it's never dead
+//   - happy bounce + sparkle: the whole face hops and eyes twinkle when happy
+//
+// Phase 1 is visual only; Phase 2 maps the live VoiceState to these expressions.
 
 import 'dart:math' as math;
 
@@ -12,11 +19,11 @@ import 'package:flutter/material.dart';
 /// The robot's expressions. Mapped from the voice state in Phase 2.
 enum RobotExpression { calm, attentive, talking, sleepy, happy }
 
-/// LED grid size. Small enough to read as "pixels", big enough for expression.
-const int _cols = 16;
-const int _rows = 10;
+/// LED grid size. Fine enough for smooth curves, still clearly "pixels".
+const int _cols = 32;
+const int _rows = 20;
 
-/// A cute pixel-art LED robot face. Drives its own blink/mouth animation.
+/// A cute pixel-art LED robot face. Drives its own animation.
 class RobotFace extends StatefulWidget {
   const RobotFace({
     super.key,
@@ -40,10 +47,10 @@ class _RobotFaceState extends State<RobotFace>
   @override
   void initState() {
     super.initState();
-    // One always-running clock; the painter derives blink + mouth phases from it.
+    // One long-running clock; the painter derives every sub-animation from it.
     _anim = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 4),
+      duration: const Duration(seconds: 6),
     )..repeat();
   }
 
@@ -64,7 +71,7 @@ class _RobotFaceState extends State<RobotFace>
             return CustomPaint(
               painter: _RobotFacePainter(
                 expression: widget.expression,
-                t: _anim.value, // 0..1 over 4s
+                t: _anim.value, // 0..1 over 6s
                 litColor: widget.litColor,
                 screenColor: widget.screenColor,
               ),
@@ -91,168 +98,108 @@ class _RobotFacePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw the dark rounded "screen" the LEDs sit on.
+    // Dark rounded "screen".
     final screenRect = RRect.fromRectAndRadius(
       Offset.zero & size,
-      Radius.circular(size.shortestSide * 0.12),
+      Radius.circular(size.shortestSide * 0.1),
     );
     canvas.drawRRect(screenRect, Paint()..color = screenColor);
 
-    final lit = _litCells(expression, t);
+    final f = _faceFor(expression, t);
 
-    // Cell geometry: leave a margin so dots don't touch the screen edge.
-    final margin = size.width * 0.04;
+    // Cell geometry.
+    final margin = size.width * 0.035;
     final gridW = size.width - margin * 2;
     final gridH = size.height - margin * 2;
     final cellW = gridW / _cols;
     final cellH = gridH / _rows;
-    final dotR = math.min(cellW, cellH) * 0.42;
+    final dotR = math.min(cellW, cellH) * 0.4;
 
-    final dimPaint = Paint()..color = litColor.withValues(alpha: 0.06);
-    final litPaint = Paint()..color = litColor;
+    // Idle "breathing": gently pulse lit brightness so the panel feels alive.
+    final breath = 0.85 + 0.15 * math.sin(t * 2 * math.pi); // 0.7..1.0
+    final litBright = (expression == RobotExpression.sleepy) ? 0.6 : breath;
+
+    final dimPaint = Paint()..color = litColor.withValues(alpha: 0.05);
+    final litPaint = Paint()..color = litColor.withValues(alpha: litBright);
     final glowPaint = Paint()
-      ..color = litColor.withValues(alpha: 0.25)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      ..color = litColor.withValues(alpha: 0.22 * litBright)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     for (var r = 0; r < _rows; r++) {
       for (var c = 0; c < _cols; c++) {
         final center = Offset(
           margin + cellW * (c + 0.5),
-          margin + cellH * (r + 0.5),
+          margin + cellH * (r + 0.5) + f.faceDy * cellH, // happy bounce offset
         );
-        if (lit.contains(_key(c, r))) {
-          canvas.drawCircle(center, dotR * 1.5, glowPaint); // soft glow
+        if (f.isLit(c, r)) {
+          canvas.drawCircle(center, dotR * 1.6, glowPaint);
           canvas.drawCircle(center, dotR, litPaint);
         } else {
-          canvas.drawCircle(center, dotR * 0.7, dimPaint); // faint unlit dot
+          canvas.drawCircle(center, dotR * 0.65, dimPaint);
         }
       }
     }
   }
 
-  // --- Expression layout -----------------------------------------------------
-  // Each expression returns the set of lit cells (encoded as r*_cols + c).
-  // Eyes sit in the upper half; the mouth in the lower half. Helpers keep the
-  // "pixel font" readable without a general sprite engine (YAGNI).
+  // --- Build the lit-cell test for the current expression + animation phase. --
 
-  static int _key(int c, int r) => r * _cols + c;
+  _Face _faceFor(RobotExpression e, double t) {
+    // Sub-phases off the 6s clock.
+    final blinkPhase = (t * 3) % 1.0; // blink ~ every 2s
+    final blinking = blinkPhase > 0.94; // short closed window
+    // Eyes glance left/right slowly (idle/attentive curiosity).
+    final dart = (math.sin(t * 2 * math.pi * 0.5) * 2).round(); // -2..2 cols
+    // Happy hop: quick little bounces.
+    final hop = (expression == RobotExpression.happy)
+        ? -(math.sin(t * 2 * math.pi * 4).abs() * 1.4) // up to ~1.4 cells up
+        : 0.0;
+    // Sparkle phase for happy eyes.
+    final sparkle = (t * 8) % 1.0 < 0.5;
 
-  Set<int> _litCells(RobotExpression e, double t) {
-    final cells = <int>{};
-    // Blink: eyes briefly close ~once every cycle (short closed window).
-    final blink = t > 0.92; // ~0.32s closed out of 4s
-    // Mouth phase for talking: open/closed a few times per second.
-    final mouthOpen = (math.sin(t * 2 * math.pi * 8) > 0);
+    final eyes = <_Eye>[];
+    _MouthSpec mouth;
 
     switch (e) {
       case RobotExpression.calm:
-        _addEyes(cells, closed: blink);
-        _addMouth(cells, _MouthShape.smile);
+        eyes
+          ..add(_Eye(cx: 10 + dart ~/ 2, cy: 7, w: 3, h: blinking ? 0 : 4))
+          ..add(_Eye(cx: 21 + dart ~/ 2, cy: 7, w: 3, h: blinking ? 0 : 4));
+        mouth = _MouthSpec.smile;
       case RobotExpression.attentive:
-        _addEyes(cells, big: true); // wide-open, paying attention
-        _addMouth(cells, _MouthShape.smallO);
+        // Wide, alert eyes; still blink + dart.
+        eyes
+          ..add(_Eye(cx: 10 + dart, cy: 7, w: 4, h: blinking ? 0 : 6))
+          ..add(_Eye(cx: 21 + dart, cy: 7, w: 4, h: blinking ? 0 : 6));
+        mouth = _MouthSpec.smallO;
       case RobotExpression.talking:
-        _addEyes(cells, closed: blink);
-        _addMouth(cells, mouthOpen ? _MouthShape.openO : _MouthShape.line);
+        eyes
+          ..add(_Eye(cx: 10, cy: 7, w: 3, h: blinking ? 0 : 4))
+          ..add(_Eye(cx: 21, cy: 7, w: 3, h: blinking ? 0 : 4));
+        // Mouth opens/closes a few times per second.
+        mouth = (math.sin(t * 2 * math.pi * 9) > 0)
+            ? _MouthSpec.openO
+            : _MouthSpec.line;
       case RobotExpression.sleepy:
-        _addEyes(cells, sleepy: true); // half-closed, looking down
-        _addMouth(cells, _MouthShape.line);
-        _addZzz(cells, t);
+        // Half-closed eyes (a thin line), looking down; no dart.
+        eyes
+          ..add(_Eye(cx: 10, cy: 9, w: 3, h: 1))
+          ..add(_Eye(cx: 21, cy: 9, w: 3, h: 1));
+        mouth = _MouthSpec.line;
       case RobotExpression.happy:
-        _addEyes(cells, happy: true); // curved ^^ eyes
-        _addMouth(cells, _MouthShape.grin);
-    }
-    return cells;
-  }
-
-  // Eyes occupy two clusters around columns 4-5 and 10-11, rows 2-4.
-  void _addEyes(
-    Set<int> cells, {
-    bool closed = false,
-    bool big = false,
-    bool sleepy = false,
-    bool happy = false,
-  }) {
-    const leftX = 4;
-    const rightX = 10;
-    void eye(int x) {
-      if (closed) {
-        // A flat closed lid (one row).
-        for (var c = x; c <= x + 1; c++) {
-          cells.add(_key(c, 3));
-        }
-      } else if (happy) {
-        // Curved ^^ : two cells up, one down — a little arch.
-        cells..add(_key(x, 3))..add(_key(x + 1, 2))..add(_key(x + 2, 3));
-      } else if (sleepy) {
-        // Half-lidded: a short lower line.
-        cells..add(_key(x, 4))..add(_key(x + 1, 4));
-      } else {
-        // Open eye block; wider AND taller when "attentive" so it reads as
-        // wide-eyed/alert vs the calm 2x2 eye.
-        final rows = big ? [1, 2, 3, 4] : [2, 3];
-        final colsE = big ? [x - 1, x, x + 1, x + 2] : [x, x + 1];
-        for (final rr in rows) {
-          for (final cc in colsE) {
-            cells.add(_key(cc, rr));
-          }
-        }
-      }
+        // Curved ^^ eyes (arc), sparkle, bouncing face.
+        eyes
+          ..add(_Eye(cx: 10, cy: 6, w: 4, h: 3, arc: true, sparkle: sparkle))
+          ..add(_Eye(cx: 21, cy: 6, w: 4, h: 3, arc: true, sparkle: sparkle));
+        mouth = _MouthSpec.grin;
     }
 
-    eye(leftX);
-    eye(rightX);
-  }
-
-  // Mouth occupies rows 6-8, columns ~5-10.
-  void _addMouth(Set<int> cells, _MouthShape shape) {
-    switch (shape) {
-      case _MouthShape.smile:
-        // Gentle upward curve.
-        cells
-          ..add(_key(5, 7))
-          ..add(_key(6, 8))
-          ..add(_key(7, 8))
-          ..add(_key(8, 8))
-          ..add(_key(9, 8))
-          ..add(_key(10, 7));
-      case _MouthShape.grin:
-        // Wide happy grin (two rows).
-        for (var c = 5; c <= 10; c++) {
-          cells.add(_key(c, 7));
-        }
-        cells..add(_key(5, 8))..add(_key(10, 8))..add(_key(6, 8))..add(_key(9, 8));
-      case _MouthShape.line:
-        for (var c = 6; c <= 9; c++) {
-          cells.add(_key(c, 7));
-        }
-      case _MouthShape.smallO:
-        cells
-          ..add(_key(7, 7))
-          ..add(_key(8, 7))
-          ..add(_key(7, 8))
-          ..add(_key(8, 8));
-      case _MouthShape.openO:
-        cells
-          ..add(_key(6, 6))
-          ..add(_key(7, 6))
-          ..add(_key(8, 6))
-          ..add(_key(9, 6))
-          ..add(_key(6, 7))
-          ..add(_key(9, 7))
-          ..add(_key(6, 8))
-          ..add(_key(7, 8))
-          ..add(_key(8, 8))
-          ..add(_key(9, 8));
-    }
-  }
-
-  // A little "z z z" rising for the sleepy state, top-right corner.
-  void _addZzz(Set<int> cells, double t) {
-    // Twinkle: show the z-dots only part of the cycle so they "rise".
-    if (t % 0.5 > 0.25) {
-      cells..add(_key(13, 1))..add(_key(14, 0))..add(_key(14, 2));
-    }
+    return _Face(
+      eyes: eyes,
+      mouth: mouth,
+      faceDy: hop,
+      zzz: e == RobotExpression.sleepy,
+      zzzPhase: (t * 2) % 1.0,
+    );
   }
 
   @override
@@ -263,4 +210,124 @@ class _RobotFacePainter extends CustomPainter {
       old.screenColor != screenColor;
 }
 
-enum _MouthShape { smile, grin, line, smallO, openO }
+/// One eye: a rounded block centered at (cx,cy) spanning w x h cells. h==0 means
+/// blinking (a flat line). `arc` draws a happy upward curve; `sparkle` adds a
+/// twinkle dot.
+class _Eye {
+  _Eye({
+    required this.cx,
+    required this.cy,
+    required this.w,
+    required this.h,
+    this.arc = false,
+    this.sparkle = false,
+  });
+  final int cx, cy, w, h;
+  final bool arc;
+  final bool sparkle;
+
+  bool covers(int c, int r) {
+    final dx = c - cx;
+    final dy = r - cy;
+    if (arc) {
+      // Upward arc "^": lit where r ≈ a parabola of c across the eye width.
+      if (dx.abs() > w) return false;
+      final curve = cy - ((w - dx.abs()) ~/ 2); // higher toward the center
+      if (r == curve || r == curve + 1) return true;
+      return false;
+    }
+    if (h == 0) {
+      // Blink: a single flat row.
+      return dy == 0 && dx.abs() <= w;
+    }
+    // Rounded rectangle: inside the box, with corners trimmed.
+    final halfW = w;
+    final halfH = h ~/ 2;
+    if (dx.abs() > halfW || dy.abs() > halfH) {
+      // sparkle dot sits just above-outer of the eye
+      if (sparkle && c == cx + cx.sign.clamp(1, 1) + w && r == cy - h ~/ 2 - 1) {
+        return true;
+      }
+      return false;
+    }
+    // Trim the four corners for a rounded look.
+    if (dx.abs() == halfW && dy.abs() == halfH) return false;
+    return true;
+  }
+}
+
+enum _MouthSpec { smile, grin, line, smallO, openO }
+
+class _Face {
+  _Face({
+    required this.eyes,
+    required this.mouth,
+    required this.faceDy,
+    required this.zzz,
+    required this.zzzPhase,
+  });
+  final List<_Eye> eyes;
+  final _MouthSpec mouth;
+  final double faceDy; // vertical cell offset (happy bounce)
+  final bool zzz;
+  final double zzzPhase;
+
+  bool isLit(int c, int r) {
+    for (final e in eyes) {
+      if (e.covers(c, r)) return true;
+    }
+    if (_mouthCovers(c, r)) return true;
+    if (zzz && _zzzCovers(c, r)) return true;
+    return false;
+  }
+
+  // Mouth is centered on the face (eyes are at cx 10 & 21 → face center ≈ 15.5).
+  // Span columns 11..20 (10 wide), rows ~13..16.
+  static const int _mouthL = 11;
+  static const int _mouthR = 20;
+  static const double _mouthMid = (_mouthL + _mouthR) / 2; // 15.5
+
+  bool _mouthCovers(int c, int r) {
+    if (c < _mouthL || c > _mouthR) return false;
+    // Normalized distance from center, 0 at the middle, 1 at the ends.
+    final span = (_mouthR - _mouthL) / 2;
+    final norm = (c - _mouthMid).abs() / span; // 0..1
+
+    switch (mouth) {
+      case _MouthSpec.smile:
+        // Upward smile: a continuous curve that lifts toward the ends.
+        // baseline row 15 in the middle, rising up to row 13 at the corners.
+        final row = 15 - (norm * norm * 2).round(); // 15 → 13
+        return r == row;
+      case _MouthSpec.grin:
+        // Wide happy grin: a filled two-row curve (open mouth showing a smile).
+        final topRow = 14 - (norm * norm * 2).round(); // upper edge curves up
+        return r >= topRow && r <= 15 && r >= 14 - 2;
+      case _MouthSpec.line:
+        // Neutral straight line (slightly inset).
+        return r == 14 && c >= _mouthL + 1 && c <= _mouthR - 1;
+      case _MouthSpec.smallO:
+        // Small round mouth in the very center.
+        return c >= 15 && c <= 16 && r >= 13 && r <= 15;
+      case _MouthSpec.openO:
+        // Hollow open mouth (a ring) for "talking".
+        if (r < 12 || r > 16) return false;
+        final edge = (c == _mouthL + 2 || c == _mouthR - 2 || r == 12 || r == 16);
+        // constrain the ring horizontally to cols 13..18
+        if (c < _mouthL + 2 || c > _mouthR - 2) return false;
+        return edge;
+    }
+  }
+
+  // "z z z" rising near the top-right when sleepy; appears in phase to "drift up".
+  bool _zzzCovers(int c, int r) {
+    // Three little z marks at increasing height; show by phase so they rise.
+    if (zzzPhase < 0.33) {
+      return c == 26 && r == 6;
+    } else if (zzzPhase < 0.66) {
+      return (c == 26 && r == 6) || (c == 28 && r == 4);
+    } else {
+      return (c == 26 && r == 6) || (c == 28 && r == 4) || (c == 30 && r == 2);
+    }
+  }
+}
