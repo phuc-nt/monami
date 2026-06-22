@@ -73,9 +73,30 @@ never committed, text only (no audio). Verified via `git check-ignore` and that 
 `profiles/*.json` was ever staged. The summary call never touches the client; the
 credential stays server-side (ADC).
 
+## Post-ship bug: memory summarized late (found in app testing)
+
+In the full app (not the WS test client), pressing back / switching child didn't
+end the session promptly: the backend only saw the disconnect when the NEXT
+session opened (or the app exited), so memory for child N was summarized at the
+start of child N+1. Cause: `VoiceController.dispose()` is synchronous but
+`socket.close()` is async + unawaited, and the event-subscription cancel ran
+first, leaving the WS half-open so the FIN didn't flush. Fix: a `shutdown()` that
+awaits the socket close, called from a `PopScope` + custom back button in
+`VoiceHome` before the route pops. Verified live: "memory updated for vy" now logs
+~2-3s after pressing back, before the next child connects.
+
+## Cross-session recall — confirmed live
+
+Memory persists (JSON on disk) and is loaded into the system prompt at the start
+of each session — the log shows `profile=vy (memory=yes)` on reconnect. Confirmed
+end-to-end by the user: in a NEW Vy session the bot spontaneously referred back to
+a prior event ("đi bệnh viện lấy máu") the child had mentioned before. The memory
+also captures everyday events, not just the fixed profile (e.g. Vy's hospital
+visit; "Em Vy đi bệnh viện nên Phong đi học một mình").
+
 ## State
 
-- 2 profiles + memory: **done** — backend live-validated; picker built + verified.
+- 2 profiles + memory: **done + live-validated incl. cross-session recall.**
 - Remaining for the app: parental PIN + time limit; cloud deploy; iPad/mobile polish.
 
 ## Carry-forward / open
