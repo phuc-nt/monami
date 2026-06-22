@@ -57,9 +57,16 @@ audio plugins disappoint.)
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | [Local Backend Gemini Live Relay](./phase-01-local-backend-gemini-live-relay.md) | ✅ Completed |
-| 2 | [Flutter Voice Client](./phase-02-flutter-voice-client.md) | Pending (blocked: install Flutter) |
-| 3 | [Integrate Bilingual Voice Loop](./phase-03-integrate-bilingual-voice-loop.md) | Pending |
+| 2 | [Flutter Voice Client](./phase-02-flutter-voice-client.md) | ✅ Completed |
+| 3 | [Integrate Bilingual Voice Loop](./phase-03-integrate-bilingual-voice-loop.md) | ◐ Largely done in P2 (see note) |
 | 4 | [Validate Slow-Speech Gate and Latency](./phase-04-validate-slow-speech-gate-and-latency.md) | Pending |
+
+> **Phase 3 note:** The integration goals (multi-turn conversation, bilingual
+> EN/VN, hard-coded profile felt, warm safe tone, natural turn-taking) were all
+> exercised and confirmed during the Phase 2 live test — 10+ continuous turns,
+> profile reflected, smooth. What remains explicitly for a focused Phase 3 pass:
+> a deliberate EN-only turn + a gentle off-topic safety probe, and tone tuning if
+> needed. Phase 4 (latency/slow-speech gate) is the main remaining work.
 
 ## Acceptance criteria (whole phase)
 
@@ -106,11 +113,23 @@ time-limit; mobile/web polish; parent dashboard; pronunciation scoring; GCE depl
 
 ## Open questions (resolve during execution)
 
-1. Flutter desktop mic/playback plugin choice (e.g. `record` + `audioplayers`, or a
-   raw-PCM stream plugin). Confirm one streams 16kHz PCM in and plays 24kHz PCM out.
-2. Backend↔client transport: plain WebSocket binary frames (recommended) — confirm
-   chunk size / framing for low latency.
+1. ~~Flutter desktop mic/playback plugin choice.~~ **RESOLVED (P2):** capture =
+   `record` 7.1.0 (`startStream`, `pcm16bits`, verified PCM16 16k mono on macOS);
+   playback = `flutter_pcm_sound` 3.3.3 (raw 24k PCM feed). No Swift channel.
+2. ~~Backend↔client transport.~~ **RESOLVED (P2):** plain WebSocket — binary
+   frames = PCM, JSON text frames = control/transcripts. `web_socket_channel`.
+   Low latency, smooth over 10+ turns.
 3. Slow-speech test input: reuse Phase 0 kid recordings or record new clips with
    deliberate long mid-sentence pauses? (privacy: keep audio local, delete after.)
-4. Keep backend-side trailing-silence VAD (as in spike) or move turn-end detection
-   client-side? Phase 1 keeps it backend-side (KISS); revisit only if needed.
+   → Still open; for Phase 4.
+4. ~~Trailing-silence VAD vs client-side turn-end.~~ **RESOLVED (P2):** kept
+   server-side VAD; with continuous mic streaming (tap-to-toggle) the server VAD
+   splits turns on natural pauses — no client-side turn detection needed.
+
+## Carry-forward (after P1/P2)
+
+- **Hardware:** Mac mini has no mic; tests used AirPods (BT HFP degrades input
+  transcription label, not comprehension). A real device mic transcribes cleanly.
+- **Phase 4:** fix the latency anchor (audio can start before the flush); run the
+  decision-grade latency + slow-speech cutoff measurement.
+- **Phase 3 leftovers:** explicit EN-only turn + off-topic safety probe; tone tune.

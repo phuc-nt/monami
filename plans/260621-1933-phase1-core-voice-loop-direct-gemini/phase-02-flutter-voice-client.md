@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Flutter Voice Client"
-status: pending
+status: completed
 priority: P1
 effort: "1-1.5d"
 dependencies: [1]
@@ -70,11 +70,45 @@ Phase 2.
 
 ## Success Criteria
 
-- [ ] macOS app launches, asks mic permission, captures audio.
-- [ ] Push-to-talk streams PCM to backend; response audio plays back.
-- [ ] Transcripts (in/out) shown for dev.
-- [ ] Reconnects cleanly after a backend restart.
-- [ ] Audio plugin choice documented; PCM formats correct (16k in / 24k out).
+- [x] macOS app launches, asks mic permission, captures audio.
+- [x] Streams PCM to backend; response audio plays back. (interaction is
+      TAP-TO-TOGGLE, not push-to-talk — see Completion Notes)
+- [x] Transcripts (in/out) shown for dev — as a scrolling chat history.
+- [x] Reconnects cleanly after a backend restart ("Kết nối lại" button + auto
+      disconnected state).
+- [x] Audio plugin choice documented; PCM formats correct (16k in / 24k out).
+
+## Completion Notes
+
+Live-validated: 10+ continuous back-and-forth turns, smooth, chat history correct.
+
+**Audio plugins (after a spike):** capture = `record` 7.1.0 (`startStream` with
+`AudioEncoder.pcm16bits` — the spike confirmed it returns real PCM16 16k mono on
+macOS, NOT the f32 of upstream issue #397); playback = `flutter_pcm_sound` 3.3.3
+(feed-callback model, plays raw 24k PCM with low latency). `web_socket_channel`
+for transport. No Swift platform channel needed.
+
+**Interaction = TAP-TO-TOGGLE (changed from push-to-talk).** A 5-year-old can't
+hold a button reliably; one tap opens the mic and streams continuously, the
+backend's server VAD splits turns on natural pauses (multi-turn per mic session),
+a second tap stops. This is simpler for a child and removed the need for manual
+end-of-utterance + a watchdog.
+
+**Files:** `app/lib/{audio_capture,audio_playback,voice_socket,voice_controller,
+main}.dart`; macOS entitlements (audio-input + network client) + Info.plist mic
+usage string.
+
+**Code review caught + fixed before live test:** (C1) `turn_complete` jumped to
+idle while audio still queued → next utterance cut off the reply; fixed with a
+playback "drained" signal. (H1) silence keep-alive looped forever; now only
+bridges gaps within a reply. (H2) transcript `+=` checked vs cumulative partials
+→ verified Gemini sends deltas (Phase 1 output), so `+=` is correct.
+
+**Hardware note:** Mac mini has NO mic — tests used AirPods. Bluetooth HFP mic
+degrades input transcription (the "Bé" transcript label sometimes mis-detects
+language), but the model still understands and replies correctly in Vietnamese.
+A real device mic (iPad) will transcribe cleanly. Audio comprehension is fine;
+only the displayed transcript label is noisy on the BT mic.
 
 ## Risk Assessment
 
