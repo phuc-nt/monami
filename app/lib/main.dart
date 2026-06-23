@@ -8,6 +8,9 @@ import 'package:flutter/services.dart';
 
 import 'app_config.dart';
 import 'app_theme.dart';
+import 'child_model.dart';
+import 'child_service.dart';
+import 'device_identity.dart';
 import 'profile_picker.dart';
 import 'responsive.dart';
 import 'robot_face.dart';
@@ -28,29 +31,53 @@ RobotExpression _expressionFor(VoiceController c) {
   };
 }
 
-void main() {
-  runApp(const MonamiApp());
+Future<void> main() async {
+  // Platform channels (Keychain via flutter_secure_storage, shared_preferences)
+  // need the binding initialized before we resolve the device identity.
+  WidgetsFlutterBinding.ensureInitialized();
+  final deviceId = await DeviceIdentity().ensure();
+  runApp(MonamiApp(deviceId: deviceId));
 }
 
 class MonamiApp extends StatelessWidget {
-  const MonamiApp({super.key});
+  const MonamiApp({super.key, required this.deviceId});
+
+  /// This install's anonymous id; scopes children + memory on the backend.
+  final String deviceId;
+
   @override
   Widget build(BuildContext context) {
+    // One service for the app, bound to this device + the build-time config.
+    final service = ChildService(
+      restBase: AppConfig.restBase,
+      deviceId: deviceId,
+      token: AppConfig.token,
+    );
     return MaterialApp(
       title: 'monami',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: Builder(
         builder: (context) => ProfilePicker(
+          service: service,
           onPick: (child) {
             final nav = Navigator.of(context);
             // Guard a fast double-tap (likely with a 5-year-old): if we've
             // already pushed VoiceHome, ignore the extra tap so we don't open a
             // second session/socket/mic.
             if (nav.canPop()) return;
-            nav.push(
-              MaterialPageRoute(builder: (_) => VoiceHome(child: child)),
-            );
+            nav.push(MaterialPageRoute(
+              builder: (_) => VoiceHome(child: child, deviceId: deviceId),
+            ));
+          },
+          onGuest: () {
+            final nav = Navigator.of(context);
+            if (nav.canPop()) return;
+            // Guest: no deviceId, the "guest" profile → backend persists nothing.
+            // (Full guest UX lands in phase 5; this already routes correctly.)
+            nav.push(MaterialPageRoute(
+              builder: (_) => const VoiceHome.guest(),
+            ));
           },
         ),
       ),
@@ -61,13 +88,27 @@ class MonamiApp extends StatelessWidget {
 class VoiceHome extends StatefulWidget {
   const VoiceHome({super.key, required this.child, this.deviceId = ''});
 
-  /// The selected child (drives the profile + theme color).
-  final ChildOption child;
+  /// Guest session: no child profile, no deviceId → backend persists nothing.
+  const VoiceHome.guest({super.key})
+      : child = null,
+        deviceId = '';
+
+  /// The selected child (drives the profile + theme color). Null = guest.
+  final Child? child;
 
   /// This install's deviceId, scoping the child + memory on the backend. Empty
-  /// runs an unscoped (guest-like) session — phase 3 supplies the real id once
-  /// the picker is backed by the device's children.
+  /// for a guest session.
   final String deviceId;
+
+  bool get isGuest => child == null;
+
+  /// The backend profile id: the child's id, or "guest" for a guest session.
+  String get profileId => child?.id ?? 'guest';
+
+  /// Display name + tint, with neutral fallback for guest.
+  String get displayName => child?.name ?? 'Khách';
+  Color get tint =>
+      childTint(child?.gender ?? ChildGender.neutral);
 
   @override
   State<VoiceHome> createState() => _VoiceHomeState();
@@ -81,7 +122,7 @@ class _VoiceHomeState extends State<VoiceHome> {
   void initState() {
     super.initState();
     _controller = VoiceController(
-      profileId: widget.child.id,
+      profileId: widget.profileId,
       base: AppConfig.wsBase,
       token: AppConfig.token,
       deviceId: widget.deviceId,
@@ -130,11 +171,11 @@ class _VoiceHomeState extends State<VoiceHome> {
           title: GestureDetector(
             onLongPress: () =>
                 setState(() => _showTranscript = !_showTranscript),
-            child: Text('Bạn của ${widget.child.name}'),
+            child: Text('Bạn của ${widget.displayName}'),
           ),
         ),
         body: Container(
-          decoration: childBackground(widget.child.color),
+          decoration: childBackground(widget.tint),
           child: SafeArea(
             child: AnimatedBuilder(
               animation: _controller,
@@ -163,7 +204,7 @@ class _VoiceHomeState extends State<VoiceHome> {
                                 maxWidth: context.isTablet ? 720 : 560),
                             child: _GlowingFace(
                               expression: _expressionFor(_controller),
-                              color: widget.child.color,
+                              color: widget.tint,
                             ),
                           ),
                         ),
