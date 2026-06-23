@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Gendered Robot Face"
-status: pending
+status: completed
 priority: P2
 effort: "3d"
 dependencies: [3]
