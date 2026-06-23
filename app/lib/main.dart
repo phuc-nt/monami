@@ -67,7 +67,7 @@ class _MonamiAppState extends State<MonamiApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'monami',
+      title: 'Monami',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: Builder(
