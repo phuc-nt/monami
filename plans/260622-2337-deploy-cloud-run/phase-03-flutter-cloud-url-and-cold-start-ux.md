@@ -1,11 +1,23 @@
 ---
 phase: 3
 title: "Flutter Cloud URL And Cold Start UX"
-status: pending
+status: completed
 priority: P2
 effort: "0.5d"
 dependencies: [2]
 ---
+
+> **Completed.** `app_config.dart` reads `MONAMI_WS_BASE` + `MONAMI_TOKEN` via
+> `--dart-define` (local defaults; token never hardcoded). `VoiceController` takes
+> base+token, appends `?profile=&token=`, and adds a `connecting` state: enters it
+> on connect, goes idle when the socket actually opens (`socket.ready`), and a 15s
+> timeout → disconnected + "Kết nối lại". The talk button is LOCKED (two gates:
+> the button switch + `toggleMic` guard) during connecting/disconnected, and the
+> robot shows a "waking" look + "Đang đánh thức bạn nhỏ…". analyze clean, tests +3,
+> macOS build OK. Code review fixed two real issues: (a) async `socket.ready`
+> callbacks could fire after dispose (back-tap during cold start) → added a
+> `_disposed` guard in the callbacks + `_setState`; (b) raw connect errors could
+> render the URL+token on screen → all error messages are now generic.
 
 # Phase 3: Flutter Cloud URL And Cold Start UX
 

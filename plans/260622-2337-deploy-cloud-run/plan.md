@@ -1,7 +1,7 @@
 ---
 title: "Deploy Backend To Cloud Run"
 description: "Run the voice backend 24/7 on GCP Cloud Run (no laptop): containerize it, move per-child memory to Firestore, gate the WS with a shared-secret token, deploy scale-to-zero, and make the Flutter app target the cloud URL with a friendly cold-start UI."
-status: pending
+status: completed
 priority: P2
 created: 2026-06-22
 blockedBy: [260622-2119-two-profiles-and-memory]
@@ -64,7 +64,7 @@ Current touchpoints (from scout):
 |-------|------|--------|
 | 1 | [Containerize And Firestore Memory](./phase-01-containerize-and-firestore-memory.md) | ✅ Completed |
 | 2 | [Auth And Cloud Run Deploy](./phase-02-auth-and-cloud-run-deploy.md) | ✅ Completed (deployed + live-validated) |
-| 3 | [Flutter Cloud URL And Cold Start UX](./phase-03-flutter-cloud-url-and-cold-start-ux.md) | Pending |
+| 3 | [Flutter Cloud URL And Cold Start UX](./phase-03-flutter-cloud-url-and-cold-start-ux.md) | ✅ Completed |
 
 ## Acceptance criteria (whole plan)
 

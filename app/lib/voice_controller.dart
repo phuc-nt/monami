@@ -23,18 +23,36 @@ import 'audio_capture.dart';
 import 'audio_playback.dart';
 import 'voice_socket.dart';
 
-enum VoiceState { disconnected, idle, listening, speaking }
+// `connecting` covers the cold-start wait (scale-to-zero backend waking up) —
+// the UI shows a friendly "waking" state and locks the talk button until idle.
+enum VoiceState { disconnected, connecting, idle, listening, speaking }
 
 class VoiceController extends ChangeNotifier {
   /// [profileId] selects which child (vy/phong); it's passed to the backend as a
-  /// `?profile=` query param so the right profile + memory is loaded.
-  VoiceController({required String profileId, String? base})
-      : _url = _buildUrl(base ?? 'ws://127.0.0.1:8000/ws/voice', profileId);
+  /// `?profile=` query param. [base] + [token] come from AppConfig (build-time);
+  /// the token (if any) is appended as `&token=` for the cloud auth gate.
+  VoiceController({
+    required String profileId,
+    required String base,
+    String token = '',
+  }) : _url = _buildUrl(base, profileId, token);
 
-  static String _buildUrl(String base, String profileId) {
-    final sep = base.contains('?') ? '&' : '?';
-    return '$base${sep}profile=$profileId';
+  static String _buildUrl(String base, String profileId, String token) {
+    String url = base;
+    void add(String key, String value) {
+      if (value.isEmpty) return;
+      final sep = url.contains('?') ? '&' : '?';
+      url = '$url$sep$key=$value';
+    }
+
+    add('profile', profileId);
+    add('token', token);
+    return url;
   }
+
+  // How long to wait for the backend (incl. cold start) before showing an error.
+  static const _connectTimeout = Duration(seconds: 15);
+  Timer? _connectTimer;
 
   final String _url;
   final AudioCapture _capture = AudioCapture();
@@ -44,6 +62,10 @@ class VoiceController extends ChangeNotifier {
 
   VoiceState _state = VoiceState.disconnected;
   VoiceState get state => _state;
+
+  // Set in dispose() so async socket.ready callbacks (which can resolve a few
+  // seconds after a back-tap during cold start) don't notify a disposed notifier.
+  bool _disposed = false;
 
   // True while the mic is open (the child tapped to talk). Independent of
   // whether the bot is currently speaking a reply — the mic stays open so the
@@ -88,17 +110,42 @@ class VoiceController extends ChangeNotifier {
   void _openSocket() {
     final socket = VoiceSocket(_url);
     _socket = socket;
+    _setState(VoiceState.connecting); // cold-start wait; UI locks the talk button
     _events = socket.connect().listen(
           _onEvent,
-          onError: (e) => _disconnect('socket error: $e'),
+          // Generic message — the raw error can contain the URL + token.
+          onError: (_) => _disconnect('mất kết nối'),
           onDone: () => _disconnect(null),
         );
-    _setState(VoiceState.idle);
+    // Watchdog: if the backend doesn't come up in time, surface a retry.
+    _connectTimer?.cancel();
+    _connectTimer = Timer(_connectTimeout, () {
+      if (_state == VoiceState.connecting) {
+        _disconnect('không kết nối được (thử lại?)');
+      }
+    });
+    // The connection is "ready" only when the socket actually opens (after a
+    // cold start this can take a few seconds) — then we go idle. These fire
+    // async, so bail if the controller was disposed (e.g. back-tap mid cold start).
+    socket.ready.then((_) {
+      if (_disposed) return;
+      _connectTimer?.cancel();
+      if (_state == VoiceState.connecting) _setState(VoiceState.idle);
+    }).catchError((_) {
+      if (_disposed) return;
+      _connectTimer?.cancel();
+      // Don't surface the raw error — the WS URL (with the token) can appear in
+      // it. Show a friendly, generic message instead.
+      _disconnect('không kết nối được (thử lại?)');
+    });
   }
 
-  /// Tap the talk button: toggle the mic open/closed.
+  /// Tap the talk button: toggle the mic open/closed. Ignored until connected
+  /// (the UI also disables the button while connecting/disconnected).
   Future<void> toggleMic() async {
-    if (_state == VoiceState.disconnected) return;
+    if (_state == VoiceState.disconnected || _state == VoiceState.connecting) {
+      return;
+    }
     if (_micOpen) {
       await _stopMic();
       _setState(VoiceState.idle);
@@ -186,6 +233,7 @@ class VoiceController extends ChangeNotifier {
   }
 
   void _setState(VoiceState s) {
+    if (_disposed) return; // never notify after dispose
     _state = s;
     notifyListeners();
   }
@@ -197,6 +245,7 @@ class VoiceController extends ChangeNotifier {
   }
 
   void _disconnect(String? message) {
+    _connectTimer?.cancel();
     _micOpen = false;
     if (message != null) _error = message;
     _setState(VoiceState.disconnected);
@@ -208,6 +257,7 @@ class VoiceController extends ChangeNotifier {
   /// the screen; dispose() is still safe to call afterwards.
   Future<void> shutdown() async {
     _happyTimer?.cancel();
+    _connectTimer?.cancel();
     await _capture.stop();
     await _socket?.close(); // await: ensure the WS FIN flushes before we leave
     await _events?.cancel();
@@ -215,7 +265,9 @@ class VoiceController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true; // block any late async callbacks from notifying
     _happyTimer?.cancel();
+    _connectTimer?.cancel();
     _socket?.close();
     _events?.cancel();
     _capture.dispose();

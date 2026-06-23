@@ -18,11 +18,26 @@ Built/validated on **macOS desktop first**; iPad/phone/web are later phases.
 
 ## Run
 
+**Local backend (default):**
+
 ```bash
 cd app
 flutter pub get
 flutter run -d macos
 ```
+
+**Cloud backend** — pass the deployed URL + secret token via `--dart-define`
+(the token lives in Secret Manager + a gitignored local config — never commit it):
+
+```bash
+flutter run -d macos \
+  --dart-define=MONAMI_WS_BASE=wss://<service>.run.app/ws/voice \
+  --dart-define=MONAMI_TOKEN=<the-secret-token>
+```
+
+On a scale-to-zero cloud backend the first connect cold-starts: the app shows a
+"Đang đánh thức bạn nhỏ…" state with the talk button **locked** until ready, then
+a timeout offers a retry.
 
 Tap **"Chạm để nói"** → speak (mic streams continuously) → hear the reply →
 keep talking for more turns → tap again to stop.

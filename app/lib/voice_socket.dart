@@ -58,6 +58,10 @@ class VoiceSocket {
     return channel.stream.map(_decode).where((e) => e != null).cast<VoiceEvent>();
   }
 
+  /// Completes when the underlying connection is actually open (or throws if it
+  /// fails). Used to distinguish "still cold-starting" from "ready".
+  Future<void> get ready async => _channel?.ready;
+
   VoiceEvent? _decode(dynamic message) {
     if (message is List<int>) {
       return AudioChunk(Uint8List.fromList(message));

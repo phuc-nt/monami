@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'app_config.dart';
 import 'profile_picker.dart';
 import 'robot_face.dart';
 import 'voice_controller.dart';
@@ -16,6 +17,7 @@ RobotExpression _expressionFor(VoiceController c) {
   }
   return switch (c.state) {
     VoiceState.disconnected => RobotExpression.sleepy,
+    VoiceState.connecting => RobotExpression.sleepy, // waking up (cold start)
     VoiceState.idle => RobotExpression.calm,
     VoiceState.listening => RobotExpression.attentive,
     VoiceState.speaking => RobotExpression.talking,
@@ -71,7 +73,11 @@ class _VoiceHomeState extends State<VoiceHome> {
   @override
   void initState() {
     super.initState();
-    _controller = VoiceController(profileId: widget.child.id);
+    _controller = VoiceController(
+      profileId: widget.child.id,
+      base: AppConfig.wsBase,
+      token: AppConfig.token,
+    );
     _controller.connect();
   }
 
@@ -177,6 +183,7 @@ class _StatusLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (state) {
       VoiceState.disconnected => ('Mất kết nối', Colors.grey),
+      VoiceState.connecting => ('Đang đánh thức bạn nhỏ…', Colors.amberAccent),
       VoiceState.idle => ('Sẵn sàng — chạm để nói', Colors.greenAccent),
       VoiceState.listening => ('Đang nghe bé…', Colors.redAccent),
       VoiceState.speaking => ('Đang trả lời…', Colors.lightBlueAccent),
@@ -285,18 +292,26 @@ class _TalkButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final micOpen = controller.micOpen;
-    final connected = controller.state != VoiceState.disconnected;
+    // Enabled only once the backend is ready — locked during cold-start
+    // (connecting) and when disconnected, so the child can't trigger broken taps.
+    final ready = switch (controller.state) {
+      VoiceState.idle || VoiceState.listening || VoiceState.speaking => true,
+      VoiceState.connecting || VoiceState.disconnected => false,
+    };
     final color = micOpen ? Colors.red : Colors.indigo;
+    final label = !ready
+        ? (controller.state == VoiceState.connecting ? 'Đợi một chút…' : 'Chưa sẵn sàng')
+        : (micOpen ? 'Đang nghe… (chạm để dừng)' : 'Chạm để nói');
     return GestureDetector(
-      onTap: connected ? () => controller.toggleMic() : null,
+      onTap: ready ? () => controller.toggleMic() : null,
       child: Container(
         height: 96,
         decoration: BoxDecoration(
-          color: connected ? color : Colors.grey,
+          color: ready ? color : Colors.grey,
           borderRadius: BorderRadius.circular(48),
           boxShadow: [
             BoxShadow(
-              color: (connected ? color : Colors.grey).withValues(alpha: 0.4),
+              color: (ready ? color : Colors.grey).withValues(alpha: 0.4),
               blurRadius: micOpen ? 24 : 8,
             ),
           ],
@@ -309,7 +324,7 @@ class _TalkButton extends StatelessWidget {
                   color: Colors.white, size: 32),
               const SizedBox(width: 12),
               Text(
-                micOpen ? 'Đang nghe… (chạm để dừng)' : 'Chạm để nói',
+                label,
                 style: const TextStyle(
                     color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
               ),
