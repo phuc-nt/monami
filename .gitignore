@@ -44,3 +44,7 @@ CLAUDE.md
 node_modules/
 dist/
 build/
+
+# Local cloud config (backend URL + token) for app builds — NEVER commit
+app/.cloud-config
+.cloud-config

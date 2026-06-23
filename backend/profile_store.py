@@ -121,9 +121,13 @@ def _client():
 
 
 def _doc_id(profile_id: str) -> str:
-    # Firestore doc ids can't contain '/'; profile ids are a fixed small set, but
-    # sanitize defensively to mirror the JSON path guard.
-    return "".join(ch for ch in profile_id if ch.isalnum() or ch in ("-", "_")) or "unknown"
+    # Firestore doc ids can't contain '/' and can't be wrapped in '__' (reserved);
+    # profile ids are a fixed small set (vy/phong), but sanitize defensively to
+    # mirror the JSON path guard.
+    safe = "".join(ch for ch in profile_id if ch.isalnum() or ch in ("-", "_"))
+    if safe.startswith("__") and safe.endswith("__"):
+        safe = safe.strip("_") or "unknown"
+    return safe or "unknown"
 
 
 def _firestore_load(profile_id: str) -> str:

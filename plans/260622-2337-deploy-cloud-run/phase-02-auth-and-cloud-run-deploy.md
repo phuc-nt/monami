@@ -1,11 +1,27 @@
 ---
 phase: 2
 title: "Auth And Cloud Run Deploy"
-status: pending
+status: completed
 priority: P2
 effort: "0.5-1d"
 dependencies: [1]
 ---
+
+> **Completed + live (deployed).** Shared-secret token gate added at WS accept
+> (constant-time compare; reject 1008 before any Gemini session; open when unset
+> for local dev). Deployed to Cloud Run (us-central1) as a least-privilege service
+> account (aiplatform.user + datastore.user), scale-to-zero, token in Secret
+> Manager, `MEMORY_BACKEND=firestore`. Verified end-to-end from the cloud: WSS
+> without token → rejected 1008; with token → full spoken loop (Phong greeted by
+> name, dinosaur reference); memory written to Firestore
+> (`child_memory/phong`). Service: `monami-backend...run.app`. Runbook: `deploy.md`.
+>
+> **Deploy bug found + fixed:** `GOOGLE_CLOUD_PROJECT` is NOT auto-injected on
+> Cloud Run, so `project_and_location()` raised. Fixed with an ADC project
+> fallback (`google.auth.default()`) AND set the env var explicitly on the service.
+>
+> **Token value lives in Secret Manager + a gitignored local config — never
+> committed.**
 
 # Phase 2: Auth And Cloud Run Deploy
 

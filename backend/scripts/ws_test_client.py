@@ -107,12 +107,17 @@ async def _collect_response(ws, t_user_end: float) -> dict:
     }
 
 
+def _with_params(url: str, **params: str | None) -> str:
+    for key, value in params.items():
+        if value:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}{key}={value}"
+    return url
+
+
 async def run(args: argparse.Namespace) -> None:
     pcm = _read_wav_pcm(Path(args.wav))
-    url = args.url
-    if args.profile:
-        sep = "&" if "?" in url else "?"
-        url = f"{url}{sep}profile={args.profile}"
+    url = _with_params(args.url, profile=args.profile, token=args.token)
     print(f"Connecting to {url} …")
     async with websockets.connect(url, max_size=None) as ws:
         print(f"Streaming {args.wav} ({len(pcm)} bytes)…")
@@ -143,6 +148,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument(
         "--profile", help="child profile id (e.g. vy, phong); added as ?profile="
+    )
+    p.add_argument(
+        "--token", help="shared-secret token; added as &token= (cloud auth)"
     )
     return p.parse_args(argv)
 

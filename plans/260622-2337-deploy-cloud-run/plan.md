@@ -63,7 +63,7 @@ Current touchpoints (from scout):
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | [Containerize And Firestore Memory](./phase-01-containerize-and-firestore-memory.md) | ✅ Completed |
-| 2 | [Auth And Cloud Run Deploy](./phase-02-auth-and-cloud-run-deploy.md) | Pending |
+| 2 | [Auth And Cloud Run Deploy](./phase-02-auth-and-cloud-run-deploy.md) | ✅ Completed (deployed + live-validated) |
 | 3 | [Flutter Cloud URL And Cold Start UX](./phase-03-flutter-cloud-url-and-cold-start-ux.md) | Pending |
 
 ## Acceptance criteria (whole plan)

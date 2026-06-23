@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -57,9 +58,28 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _token_ok(supplied: str | None) -> bool:
+    """Constant-time check of the shared-secret token.
+
+    If MONAMI_AUTH_TOKEN is unset (local dev), allow all (the WS isn't exposed).
+    In the cloud it MUST be set so a stranger with the URL can't open a session.
+    """
+    expected = os.environ.get("MONAMI_AUTH_TOKEN")
+    if not expected:
+        return True  # local dev: no gate (warned at startup)
+    return secrets.compare_digest(supplied or "", expected)
+
+
 @app.websocket("/ws/voice")
 async def ws_voice(websocket: WebSocket) -> None:
     await websocket.accept()
+    # Reject an unauthorized connect BEFORE opening any Gemini session (so a
+    # stranger with the URL can't burn quota or touch a child's memory). 1008 =
+    # policy violation.
+    if not _token_ok(websocket.query_params.get("token")):
+        logger.warning("rejected connect: bad/missing token (%s)", websocket.client)
+        await websocket.close(code=1008)
+        return
     # Which child is talking, e.g. ws://…/ws/voice?profile=vy (defaults if absent).
     profile_id = websocket.query_params.get("profile")
     logger.info("client connected: %s (profile=%s)", websocket.client, profile_id)

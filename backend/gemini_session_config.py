@@ -112,14 +112,32 @@ def summary_model_id() -> str:
 
 def project_and_location() -> tuple[str, str]:
     """GCP project + region for the Vertex AI client. Region defaults to the
-    only one that serves native audio (us-central1)."""
-    project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    only one that serves native audio (us-central1). The project comes from
+    GOOGLE_CLOUD_PROJECT if set, else from ADC (the metadata server on Cloud Run /
+    the gcloud default locally) — so the env var is optional in the cloud."""
     location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+    project = (
+        os.environ.get("GOOGLE_CLOUD_PROJECT")
+        or os.environ.get("GOOGLE_CLOUD_QUOTA_PROJECT")
+        or _project_from_adc()
+    )
     if not project:
         raise RuntimeError(
-            "GOOGLE_CLOUD_PROJECT not set. Copy backend/.env.example to backend/.env."
+            "No GCP project found. Set GOOGLE_CLOUD_PROJECT (env/.env) or run "
+            "`gcloud auth application-default login` locally."
         )
     return project, location
+
+
+def _project_from_adc() -> str | None:
+    """Best-effort project id from Application Default Credentials."""
+    try:
+        import google.auth
+
+        _, project = google.auth.default()
+        return project
+    except Exception:  # noqa: BLE001 - fall through to the explicit error
+        return None
 
 
 def build_live_connect_config(
