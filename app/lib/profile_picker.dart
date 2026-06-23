@@ -3,6 +3,7 @@
 // the profile id to the backend so the right profile + memory is loaded.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'responsive.dart';
 import 'robot_face.dart';
@@ -99,46 +100,71 @@ class ProfilePicker extends StatelessWidget {
   }
 }
 
-class _ChildCard extends StatelessWidget {
+class _ChildCard extends StatefulWidget {
   const _ChildCard({required this.child, required this.width, required this.onTap});
   final ChildOption child;
   final double width;
   final VoidCallback onTap;
 
   @override
+  State<_ChildCard> createState() => _ChildCardState();
+}
+
+class _ChildCardState extends State<_ChildCard> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
+    final child = widget.child;
     // The robot face keeps its 32:20 ratio; size it to the card width.
-    final faceH = width * (20 / 32) * 0.85;
+    final faceH = widget.width * (20 / 32) * 0.85;
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: width,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: child.color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: child.color.withValues(alpha: 0.5), width: 2),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // A happy tinted robot face as the avatar.
-            SizedBox(
-              height: faceH,
-              child: RobotFace(
-                expression: RobotExpression.happy,
-                litColor: child.color,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        widget.onTap();
+      },
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          width: widget.width,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: child.color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(24),
+            border:
+                Border.all(color: child.color.withValues(alpha: 0.5), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: child.color.withValues(alpha: 0.25),
+                blurRadius: 24,
+                spreadRadius: -4,
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              child.name,
-              style: TextStyle(
-                  color: child.color,
-                  fontSize: context.isTablet ? 32 : 24,
-                  fontWeight: FontWeight.bold),
-            ),
-          ],
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: faceH,
+                child: RobotFace(
+                  expression: RobotExpression.happy,
+                  litColor: child.color,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                child.name,
+                style: TextStyle(
+                    color: child.color,
+                    fontSize: context.isTablet ? 32 : 24,
+                    fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
         ),
       ),
     );

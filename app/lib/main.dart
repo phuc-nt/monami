@@ -4,7 +4,10 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:flutter/services.dart';
+
 import 'app_config.dart';
+import 'app_theme.dart';
 import 'profile_picker.dart';
 import 'responsive.dart';
 import 'robot_face.dart';
@@ -35,10 +38,8 @@ class MonamiApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'monami',
-      theme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        useMaterial3: true,
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
       home: Builder(
         builder: (context) => ProfilePicker(
           onPick: (child) {
@@ -108,8 +109,11 @@ class _VoiceHomeState extends State<VoiceHome> {
         if (!didPop) _leave();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0B1016),
+        // Transparent so the per-child gradient shows through.
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
+          backgroundColor: Colors.transparent,
           // Back returns to the picker → ends the session → backend summarizes.
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -123,51 +127,89 @@ class _VoiceHomeState extends State<VoiceHome> {
             child: Text('Bạn của ${widget.child.name}'),
           ),
         ),
-        body: SafeArea(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              final pad = context.isTablet ? 40.0 : 24.0;
-              return Padding(
-                padding: EdgeInsets.all(pad),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // The robot face is the hero (bigger cap on a tablet).
-                    Expanded(
-                      flex: _showTranscript ? 3 : 5,
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                              maxWidth: context.isTablet ? 720 : 560),
-                          child: RobotFace(
-                            expression: _expressionFor(_controller),
-                            litColor: widget.child.color,
+        body: Container(
+          decoration: childBackground(widget.child.color),
+          child: SafeArea(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final pad = context.isTablet ? 40.0 : 24.0;
+                // Hide the status text on the kid view once we're live (the face
+                // conveys idle/listening/speaking). Keep it for connecting (the
+                // cold-start "Đang đánh thức bạn nhỏ…" cue) and disconnected (with
+                // the reconnect button) + any error.
+                final showStatus =
+                    _controller.state == VoiceState.connecting ||
+                        _controller.state == VoiceState.disconnected ||
+                        _controller.error != null;
+                return Padding(
+                  padding: EdgeInsets.all(pad),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // The robot face is the hero — filling the space, with a
+                      // soft glow behind it in the child's color.
+                      Expanded(
+                        flex: _showTranscript ? 3 : 5,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                                maxWidth: context.isTablet ? 720 : 560),
+                            child: _GlowingFace(
+                              expression: _expressionFor(_controller),
+                              color: widget.child.color,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    _StatusLine(
-                      state: _controller.state,
-                      error: _controller.error,
-                      onReconnect: _controller.reconnect,
-                    ),
-                    if (_showTranscript) ...[
-                      const SizedBox(height: 12),
-                      Expanded(
-                        flex: 2,
-                        child: _TranscriptView(turns: _controller.turns),
-                      ),
+                      if (showStatus) ...[
+                        const SizedBox(height: 12),
+                        _StatusLine(
+                          state: _controller.state,
+                          error: _controller.error,
+                          onReconnect: _controller.reconnect,
+                        ),
+                      ],
+                      if (_showTranscript) ...[
+                        const SizedBox(height: 12),
+                        Expanded(
+                          flex: 2,
+                          child: _TranscriptView(turns: _controller.turns),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      _TalkButton(controller: _controller),
                     ],
-                    const SizedBox(height: 20),
-                    _TalkButton(controller: _controller),
-                  ],
-                ),
-              );
-            },
+                  ),
+                );
+              },
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The robot face hero: the LED face with a soft radial glow behind it in the
+/// child's color, so it reads as the centerpiece rather than floating in space.
+class _GlowingFace extends StatelessWidget {
+  const _GlowingFace({required this.expression, required this.color});
+  final RobotExpression expression;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          colors: [color.withValues(alpha: 0.22), Colors.transparent],
+          radius: 0.7,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: RobotFace(expression: expression, litColor: color),
       ),
     );
   }
@@ -198,7 +240,10 @@ class _StatusLine extends StatelessWidget {
           children: [
             Icon(Icons.circle, size: 10, color: color),
             const SizedBox(width: 8),
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+            Flexible(
+              child: Text(label,
+                  style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+            ),
             if (state == VoiceState.disconnected && onReconnect != null) ...[
               const SizedBox(width: 12),
               TextButton(onPressed: onReconnect, child: const Text('Kết nối lại')),
@@ -288,50 +333,103 @@ class _TranscriptViewState extends State<_TranscriptView> {
   }
 }
 
-class _TalkButton extends StatelessWidget {
+class _TalkButton extends StatefulWidget {
   const _TalkButton({required this.controller});
   final VoiceController controller;
 
   @override
+  State<_TalkButton> createState() => _TalkButtonState();
+}
+
+class _TalkButtonState extends State<_TalkButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // A gentle "tap me" breathing pulse while the button is idle-and-ready.
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  void _onTap() {
+    HapticFeedback.lightImpact(); // a satisfying confirmation tap (iOS)
+    widget.controller.toggleMic();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final micOpen = controller.micOpen;
+    final c = widget.controller;
+    final micOpen = c.micOpen;
     // Enabled only once the backend is ready — locked during cold-start
     // (connecting) and when disconnected, so the child can't trigger broken taps.
-    final ready = switch (controller.state) {
+    final ready = switch (c.state) {
       VoiceState.idle || VoiceState.listening || VoiceState.speaking => true,
       VoiceState.connecting || VoiceState.disconnected => false,
     };
     final color = micOpen ? Colors.red : Colors.indigo;
     final label = !ready
-        ? (controller.state == VoiceState.connecting ? 'Đợi một chút…' : 'Chưa sẵn sàng')
+        ? (c.state == VoiceState.connecting ? 'Đợi một chút…' : 'Chưa sẵn sàng')
         : (micOpen ? 'Đang nghe… (chạm để dừng)' : 'Chạm để nói');
+    // Pulse only when idle-and-ready; press scales down; otherwise steady.
+    final idleReady = ready && !micOpen;
+
     return GestureDetector(
-      onTap: ready ? () => controller.toggleMic() : null,
-      child: Container(
-        height: context.isTablet ? 120 : 96,
-        decoration: BoxDecoration(
-          color: ready ? color : Colors.grey,
-          borderRadius: BorderRadius.circular(48),
-          boxShadow: [
-            BoxShadow(
-              color: (ready ? color : Colors.grey).withValues(alpha: 0.4),
-              blurRadius: micOpen ? 24 : 8,
-            ),
-          ],
-        ),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(micOpen ? Icons.mic : Icons.mic_none,
-                  color: Colors.white, size: 32),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+      onTap: ready ? _onTap : null,
+      onTapDown: ready ? (_) => setState(() => _pressed = true) : null,
+      onTapUp: ready ? (_) => setState(() => _pressed = false) : null,
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, child) {
+          final pulse = idleReady ? 1.0 + _pulse.value * 0.025 : 1.0;
+          final scale = _pressed ? 0.96 : pulse;
+          return Transform.scale(scale: scale, child: child);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          height: context.isTablet ? 120 : 96,
+          decoration: BoxDecoration(
+            color: ready ? color : Colors.grey,
+            borderRadius: BorderRadius.circular(48),
+            boxShadow: [
+              BoxShadow(
+                color: (ready ? color : Colors.grey)
+                    .withValues(alpha: micOpen ? 0.6 : 0.4),
+                blurRadius: micOpen ? 28 : 12,
+                spreadRadius: micOpen ? 2 : 0,
               ),
             ],
+          ),
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(micOpen ? Icons.mic : Icons.mic_none,
+                    color: Colors.white, size: context.isTablet ? 40 : 34),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

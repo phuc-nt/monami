@@ -44,6 +44,8 @@ dependencies:
   flutter_pcm_sound: ^3.3.3
   # WebSocket transport to the local backend.
   web_socket_channel: ^3.0.0
+  # Rounded, kid-friendly font (Baloo 2) for the UI polish pass.
+  google_fonts: ^6.2.0
 
 dev_dependencies:
   flutter_test:
