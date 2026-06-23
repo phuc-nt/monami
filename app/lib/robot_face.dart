@@ -16,8 +16,26 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'child_model.dart';
+
 /// The robot's expressions. Mapped from the voice state in Phase 2.
 enum RobotExpression { calm, attentive, talking, sleepy, happy }
+
+/// Visual variant of the face, chosen from the child's gender. The animation +
+/// expressions are identical across variants; only the static shape decoration
+/// differs (eye style + brow/lash + antenna), so boys and girls read as clearly
+/// distinct characters without forking the animation logic.
+///   - girl   : softer, rounded eyes with a little lash accent; a small "bow".
+///   - boy    : squarer, stronger eyes with a flat brow; a single antenna stalk.
+///   - neutral: the original gender-agnostic face (guest / unspecified).
+enum FaceVariant { girl, boy, neutral }
+
+/// Map a child's gender to a face variant (unspecified → neutral).
+FaceVariant faceVariantFor(ChildGender g) => switch (g) {
+      ChildGender.girl => FaceVariant.girl,
+      ChildGender.boy => FaceVariant.boy,
+      ChildGender.neutral => FaceVariant.neutral,
+    };
 
 /// LED grid size. Fine enough for smooth curves, still clearly "pixels".
 const int _cols = 32;
@@ -28,11 +46,13 @@ class RobotFace extends StatefulWidget {
   const RobotFace({
     super.key,
     required this.expression,
+    this.variant = FaceVariant.neutral,
     this.litColor = const Color(0xFF7CF6C8), // friendly mint-green LEDs
     this.screenColor = const Color(0xFF15202B),
   });
 
   final RobotExpression expression;
+  final FaceVariant variant;
   final Color litColor;
   final Color screenColor;
 
@@ -71,6 +91,7 @@ class _RobotFaceState extends State<RobotFace>
             return CustomPaint(
               painter: _RobotFacePainter(
                 expression: widget.expression,
+                variant: widget.variant,
                 t: _anim.value, // 0..1 over 6s
                 litColor: widget.litColor,
                 screenColor: widget.screenColor,
@@ -86,12 +107,14 @@ class _RobotFaceState extends State<RobotFace>
 class _RobotFacePainter extends CustomPainter {
   _RobotFacePainter({
     required this.expression,
+    required this.variant,
     required this.t,
     required this.litColor,
     required this.screenColor,
   });
 
   final RobotExpression expression;
+  final FaceVariant variant;
   final double t; // 0..1 animation clock
   final Color litColor;
   final Color screenColor;
@@ -105,7 +128,7 @@ class _RobotFacePainter extends CustomPainter {
     );
     canvas.drawRRect(screenRect, Paint()..color = screenColor);
 
-    final f = _faceFor(expression, t);
+    final f = _faceFor(expression, variant, t);
 
     // Cell geometry.
     final margin = size.width * 0.035;
@@ -143,7 +166,7 @@ class _RobotFacePainter extends CustomPainter {
 
   // --- Build the lit-cell test for the current expression + animation phase. --
 
-  _Face _faceFor(RobotExpression e, double t) {
+  _Face _faceFor(RobotExpression e, FaceVariant v, double t) {
     // Sub-phases off the 6s clock.
     final blinkPhase = (t * 3) % 1.0; // blink ~ every 2s
     final blinking = blinkPhase > 0.94; // short closed window
@@ -156,40 +179,64 @@ class _RobotFacePainter extends CustomPainter {
     // Sparkle phase for happy eyes.
     final sparkle = (t * 8) % 1.0 < 0.5;
 
+    // Per-variant static geometry. The SAME animation drives all variants; only
+    // the eye style + accents (brow / lash) differ. `boy` = squarer eyes + a
+    // flat brow; `girl` = the rounded base eyes + an outer lash; `neutral` =
+    // exactly the original face.
+    // Boy reads "stronger" via square (untrimmed) eyes + the antenna stalk; a
+    // separate eyebrow fought the eyes at this LED density, so it's omitted.
+    // Girl reads "softer" via the rounded base eyes + an outer lash flick + bow.
+    final square = v == FaceVariant.boy;
+    final lash = v == FaceVariant.girl;
+
+    _Eye eye(int cx, int cy, int w, int h,
+            {bool arc = false, bool sparkle = false, int side = 0}) =>
+        _Eye(
+          cx: cx,
+          cy: cy,
+          w: w,
+          h: h,
+          arc: arc,
+          sparkle: sparkle,
+          square: square && !arc,
+          lash: lash && !arc && h > 0,
+          side: side, // -1 = left eye, +1 = right eye (for outer accents)
+        );
+
     final eyes = <_Eye>[];
     _MouthSpec mouth;
 
     switch (e) {
       case RobotExpression.calm:
         eyes
-          ..add(_Eye(cx: 10 + dart ~/ 2, cy: 7, w: 3, h: blinking ? 0 : 4))
-          ..add(_Eye(cx: 21 + dart ~/ 2, cy: 7, w: 3, h: blinking ? 0 : 4));
+          ..add(eye(10 + dart ~/ 2, 7, 3, blinking ? 0 : 4, side: -1))
+          ..add(eye(21 + dart ~/ 2, 7, 3, blinking ? 0 : 4, side: 1));
         mouth = _MouthSpec.smile;
       case RobotExpression.attentive:
         // Wide, alert eyes; still blink + dart.
         eyes
-          ..add(_Eye(cx: 10 + dart, cy: 7, w: 4, h: blinking ? 0 : 6))
-          ..add(_Eye(cx: 21 + dart, cy: 7, w: 4, h: blinking ? 0 : 6));
+          ..add(eye(10 + dart, 7, 4, blinking ? 0 : 6, side: -1))
+          ..add(eye(21 + dart, 7, 4, blinking ? 0 : 6, side: 1));
         mouth = _MouthSpec.smallO;
       case RobotExpression.talking:
         eyes
-          ..add(_Eye(cx: 10, cy: 7, w: 3, h: blinking ? 0 : 4))
-          ..add(_Eye(cx: 21, cy: 7, w: 3, h: blinking ? 0 : 4));
+          ..add(eye(10, 7, 3, blinking ? 0 : 4, side: -1))
+          ..add(eye(21, 7, 3, blinking ? 0 : 4, side: 1));
         // Mouth opens/closes a few times per second.
         mouth = (math.sin(t * 2 * math.pi * 9) > 0)
             ? _MouthSpec.openO
             : _MouthSpec.line;
       case RobotExpression.sleepy:
-        // Half-closed eyes (a thin line), looking down; no dart.
+        // Half-closed eyes (a thin line), looking down; no dart, no accents.
         eyes
-          ..add(_Eye(cx: 10, cy: 9, w: 3, h: 1))
-          ..add(_Eye(cx: 21, cy: 9, w: 3, h: 1));
+          ..add(eye(10, 9, 3, 1, side: -1))
+          ..add(eye(21, 9, 3, 1, side: 1));
         mouth = _MouthSpec.line;
       case RobotExpression.happy:
-        // Curved ^^ eyes (arc), sparkle, bouncing face.
+        // Curved ^^ eyes (arc), sparkle, bouncing face — same for all variants.
         eyes
-          ..add(_Eye(cx: 10, cy: 6, w: 4, h: 3, arc: true, sparkle: sparkle))
-          ..add(_Eye(cx: 21, cy: 6, w: 4, h: 3, arc: true, sparkle: sparkle));
+          ..add(eye(10, 6, 4, 3, arc: true, sparkle: sparkle, side: -1))
+          ..add(eye(21, 6, 4, 3, arc: true, sparkle: sparkle, side: 1));
         mouth = _MouthSpec.grin;
     }
 
@@ -199,20 +246,31 @@ class _RobotFacePainter extends CustomPainter {
       faceDy: hop,
       zzz: e == RobotExpression.sleepy,
       zzzPhase: (t * 2) % 1.0,
+      antenna: e == RobotExpression.sleepy ? _Antenna.none : _antennaFor(v),
     );
   }
+
+  _Antenna _antennaFor(FaceVariant v) => switch (v) {
+        FaceVariant.boy => _Antenna.stalk, // a single antenna stalk + tip
+        FaceVariant.girl => _Antenna.bow, // a little bow on top
+        FaceVariant.neutral => _Antenna.none,
+      };
 
   @override
   bool shouldRepaint(_RobotFacePainter old) =>
       old.expression != expression ||
+      old.variant != variant ||
       old.t != t ||
       old.litColor != litColor ||
       old.screenColor != screenColor;
 }
 
-/// One eye: a rounded block centered at (cx,cy) spanning w x h cells. h==0 means
-/// blinking (a flat line). `arc` draws a happy upward curve; `sparkle` adds a
-/// twinkle dot.
+/// One eye: a block centered at (cx,cy) spanning w x h cells. h==0 means blinking
+/// (a flat line). `arc` draws a happy upward curve; `sparkle` adds a twinkle dot.
+/// Variant decoration: `square` keeps the corners (boy, stronger); otherwise the
+/// corners are trimmed (rounded). `lash` lights a short lash flick at the
+/// outer-top (girl). `side` is -1 for the left eye, +1 for the right, so accents
+/// flick outward.
 class _Eye {
   _Eye({
     required this.cx,
@@ -221,10 +279,16 @@ class _Eye {
     required this.h,
     this.arc = false,
     this.sparkle = false,
+    this.square = false,
+    this.lash = false,
+    this.side = 0,
   });
   final int cx, cy, w, h;
   final bool arc;
   final bool sparkle;
+  final bool square;
+  final bool lash;
+  final int side;
 
   bool covers(int c, int r) {
     final dx = c - cx;
@@ -240,9 +304,19 @@ class _Eye {
       // Blink: a single flat row.
       return dy == 0 && dx.abs() <= w;
     }
-    // Rounded rectangle: inside the box, with corners trimmed.
     final halfW = w;
     final halfH = h ~/ 2;
+    // The lash accent sits OUTSIDE the eye box (with a clear gap) — test first.
+    if (lash) {
+      // A short outward lash flick at the outer-top corner of the eye, clearly
+      // separated from the eye box.
+      final outerC = cx + side * (halfW + 1);
+      if ((c == outerC && r == cy - halfH - 1) ||
+          (c == outerC + side && r == cy - halfH - 1) ||
+          (c == outerC + side && r == cy - halfH)) {
+        return true;
+      }
+    }
     if (dx.abs() > halfW || dy.abs() > halfH) {
       // sparkle dot sits just above-outer of the eye
       if (sparkle && c == cx + cx.sign.clamp(1, 1) + w && r == cy - h ~/ 2 - 1) {
@@ -250,11 +324,15 @@ class _Eye {
       }
       return false;
     }
-    // Trim the four corners for a rounded look.
-    if (dx.abs() == halfW && dy.abs() == halfH) return false;
+    // Trim the four corners for a rounded look — unless `square` (keep them).
+    if (!square && dx.abs() == halfW && dy.abs() == halfH) return false;
     return true;
   }
 }
+
+/// A small accent on top of the head: a boy's antenna stalk, a girl's bow, or
+/// nothing (neutral / sleepy).
+enum _Antenna { none, stalk, bow }
 
 enum _MouthSpec { smile, grin, line, smallO, openO }
 
@@ -265,12 +343,14 @@ class _Face {
     required this.faceDy,
     required this.zzz,
     required this.zzzPhase,
+    this.antenna = _Antenna.none,
   });
   final List<_Eye> eyes;
   final _MouthSpec mouth;
   final double faceDy; // vertical cell offset (happy bounce)
   final bool zzz;
   final double zzzPhase;
+  final _Antenna antenna;
 
   bool isLit(int c, int r) {
     for (final e in eyes) {
@@ -278,7 +358,27 @@ class _Face {
     }
     if (_mouthCovers(c, r)) return true;
     if (zzz && _zzzCovers(c, r)) return true;
+    if (antenna != _Antenna.none && _antennaCovers(c, r)) return true;
     return false;
+  }
+
+  // Top-of-head accent, centered between the eyes (face center ≈ col 15-16).
+  bool _antennaCovers(int c, int r) {
+    switch (antenna) {
+      case _Antenna.none:
+        return false;
+      case _Antenna.stalk:
+        // A short vertical stalk rising from row 2 with a tip dot at the top.
+        if (c == 15 && r >= 1 && r <= 2) return true; // stalk
+        if (r == 0 && (c == 15 || c == 16)) return true; // tip
+        return false;
+      case _Antenna.bow:
+        // A little bow: two small lobes either side of a center knot at row 1-2.
+        if (r == 1 && (c == 14 || c == 17)) return true; // outer lobe tops
+        if (r == 2 && (c == 13 || c == 14 || c == 17 || c == 18)) return true;
+        if ((r == 1 || r == 2) && (c == 15 || c == 16)) return true; // knot
+        return false;
+    }
   }
 
   // Mouth is centered on the face (eyes are at cx 10 & 21 → face center ≈ 15.5).

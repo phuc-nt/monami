@@ -7,20 +7,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_theme.dart';
 import 'child_form_screen.dart';
 import 'child_manage_screen.dart';
 import 'child_model.dart';
 import 'child_service.dart';
 import 'responsive.dart';
 import 'robot_face.dart';
-
-/// Soft per-gender tint for a child's card + voice screen. A stand-in until the
-/// gendered palette lands in phase 4; neutral covers guest / unspecified.
-Color childTint(ChildGender g) => switch (g) {
-      ChildGender.girl => const Color(0xFFE8A0D8), // pink-ish
-      ChildGender.boy => const Color(0xFF7CC4F6), // blue-ish
-      ChildGender.neutral => const Color(0xFF9FA8B2), // muted grey
-    };
 
 const int kMaxChildren = 5;
 
@@ -243,7 +236,7 @@ class _ChildCardState extends State<_ChildCard> {
   @override
   Widget build(BuildContext context) {
     final child = widget.child;
-    final color = childTint(child.gender);
+    final color = paletteFor(child.gender);
     final faceH = widget.width * (20 / 32) * 0.85;
     return GestureDetector(
       onTap: () {
@@ -285,7 +278,10 @@ class _ChildCardState extends State<_ChildCard> {
               SizedBox(
                 height: faceH,
                 child: RobotFace(
-                    expression: RobotExpression.happy, litColor: color),
+                  expression: RobotExpression.happy,
+                  variant: faceVariantFor(child.gender),
+                  litColor: color,
+                ),
               ),
               const SizedBox(height: 12),
               Text(

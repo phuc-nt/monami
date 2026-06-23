@@ -39,27 +39,40 @@ Future<void> main() async {
   runApp(MonamiApp(deviceId: deviceId));
 }
 
-class MonamiApp extends StatelessWidget {
+class MonamiApp extends StatefulWidget {
   const MonamiApp({super.key, required this.deviceId});
 
   /// This install's anonymous id; scopes children + memory on the backend.
   final String deviceId;
 
   @override
+  State<MonamiApp> createState() => _MonamiAppState();
+}
+
+class _MonamiAppState extends State<MonamiApp> {
+  // One service for the app lifetime (its http client is closed on dispose),
+  // instead of a fresh one per build.
+  late final ChildService _service = ChildService(
+    restBase: AppConfig.restBase,
+    deviceId: widget.deviceId,
+    token: AppConfig.token,
+  );
+
+  @override
+  void dispose() {
+    _service.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // One service for the app, bound to this device + the build-time config.
-    final service = ChildService(
-      restBase: AppConfig.restBase,
-      deviceId: deviceId,
-      token: AppConfig.token,
-    );
     return MaterialApp(
       title: 'monami',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: Builder(
         builder: (context) => ProfilePicker(
-          service: service,
+          service: _service,
           onPick: (child) {
             final nav = Navigator.of(context);
             // Guard a fast double-tap (likely with a 5-year-old): if we've
@@ -67,7 +80,7 @@ class MonamiApp extends StatelessWidget {
             // second session/socket/mic.
             if (nav.canPop()) return;
             nav.push(MaterialPageRoute(
-              builder: (_) => VoiceHome(child: child, deviceId: deviceId),
+              builder: (_) => VoiceHome(child: child, deviceId: widget.deviceId),
             ));
           },
           onGuest: () {
@@ -105,10 +118,11 @@ class VoiceHome extends StatefulWidget {
   /// The backend profile id: the child's id, or "guest" for a guest session.
   String get profileId => child?.id ?? 'guest';
 
-  /// Display name + tint, with neutral fallback for guest.
+  /// Display name + tint + face variant, with neutral fallback for guest.
   String get displayName => child?.name ?? 'Khách';
-  Color get tint =>
-      childTint(child?.gender ?? ChildGender.neutral);
+  ChildGender get _gender => child?.gender ?? ChildGender.neutral;
+  Color get tint => paletteFor(_gender);
+  FaceVariant get faceVariant => faceVariantFor(_gender);
 
   @override
   State<VoiceHome> createState() => _VoiceHomeState();
@@ -204,6 +218,7 @@ class _VoiceHomeState extends State<VoiceHome> {
                                 maxWidth: context.isTablet ? 720 : 560),
                             child: _GlowingFace(
                               expression: _expressionFor(_controller),
+                              variant: widget.faceVariant,
                               color: widget.tint,
                             ),
                           ),
@@ -241,8 +256,13 @@ class _VoiceHomeState extends State<VoiceHome> {
 /// The robot face hero: the LED face with a soft radial glow behind it in the
 /// child's color, so it reads as the centerpiece rather than floating in space.
 class _GlowingFace extends StatelessWidget {
-  const _GlowingFace({required this.expression, required this.color});
+  const _GlowingFace({
+    required this.expression,
+    required this.variant,
+    required this.color,
+  });
   final RobotExpression expression;
+  final FaceVariant variant;
   final Color color;
 
   @override
@@ -256,7 +276,8 @@ class _GlowingFace extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: RobotFace(expression: expression, litColor: color),
+        child: RobotFace(
+            expression: expression, variant: variant, litColor: color),
       ),
     );
   }

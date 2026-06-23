@@ -5,7 +5,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'child_model.dart';
+
 const Color kBgDark = Color(0xFF0B1016);
+
+/// Per-gender palette: the tint that colors a child's card, the voice-screen
+/// gradient, and the robot-face LEDs. Girl = warm pink; boy = cool blue; neutral
+/// (guest / unspecified) = a muted grey. The single source of per-child color, so
+/// the face + screen always agree. (Replaces the stand-in `childTint` that lived
+/// in the picker.)
+Color paletteFor(ChildGender g) => switch (g) {
+      ChildGender.girl => const Color(0xFFE8A0D8), // warm pink
+      ChildGender.boy => const Color(0xFF7CC4F6), // cool blue
+      ChildGender.neutral => const Color(0xFF9FA8B2), // muted grey
+    };
 
 ThemeData buildAppTheme() {
   final base = ThemeData(
