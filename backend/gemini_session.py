@@ -139,6 +139,7 @@ async def run_session(
     device_id: str | None = None,
     child_id: str | None = None,
     is_guest: bool = False,
+    mode: str | None = None,
 ) -> None:
     """Open a Gemini Live session for one client connection and relay both ways.
 
@@ -147,6 +148,11 @@ async def run_session(
     For a registered child, (device_id, child_id) locate the child doc; if it
     can't be resolved we fall back to the neutral GUEST profile and treat the
     session as guest (no persistence), never another child's memory.
+
+    `mode` (optional) selects a structured learning activity; None = free chat
+    (unchanged). The lesson content for a learning mode is loaded from the
+    curriculum (a later phase wires the real loader; for now lesson stays empty,
+    so a mode runs on its leading script alone).
 
     Spawns the uplink + downlink pumps; when either finishes (client disconnect or
     session end) the other is cancelled and the Live session is closed.
@@ -162,11 +168,12 @@ async def run_session(
 
     client = _make_client()
     model = cfg.model_id()
-    config = cfg.build_live_connect_config(profile, memory_text)
+    # lesson is empty here; the curriculum loader fills it in a later phase.
+    config = cfg.build_live_connect_config(profile, memory_text, mode=mode)
 
     logger.info(
-        "opening Gemini Live session: model=%s persist=%s (memory=%s)",
-        model, persist, "yes" if memory_text else "none",
+        "opening Gemini Live session: model=%s persist=%s mode=%s (memory=%s)",
+        model, persist, mode or "chat", "yes" if memory_text else "none",
     )
     transcript: list[tuple[str, str]] = []
     try:

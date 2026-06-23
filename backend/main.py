@@ -91,11 +91,16 @@ async def ws_voice(websocket: WebSocket) -> None:
     # never load or save memory. (An old build sending only ?profile=vy with no
     # device also lands here as guest: no crash, no write — the cutover shim.)
     is_guest = (not device_id) or child_id == "guest"
+    # Optional learning mode (english|stories|science); absent/unknown = free chat.
+    mode = websocket.query_params.get("mode")
     # Deliberately do NOT log device/child ids (they're bearer capabilities).
-    logger.info("client connected: %s (guest=%s)", websocket.client, is_guest)
+    logger.info(
+        "client connected: %s (guest=%s mode=%s)", websocket.client, is_guest,
+        mode or "chat",
+    )
     try:
         await run_session(
-            _StarletteWsAdapter(websocket), device_id, child_id, is_guest
+            _StarletteWsAdapter(websocket), device_id, child_id, is_guest, mode
         )
     except WebSocketDisconnect:
         logger.info("client disconnected")

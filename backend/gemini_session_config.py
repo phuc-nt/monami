@@ -23,6 +23,7 @@ import os
 
 from google.genai import types
 
+import learning_modes
 from child_profile import ChildProfile
 
 # --- Audio format (Gemini Live: 16 kHz mono PCM in, 24 kHz mono PCM out). ---
@@ -70,11 +71,21 @@ An toàn / Safety:
 """
 
 
-def build_system_prompt(profile: ChildProfile, memory_text: str = "") -> str:
-    """Base persona + the selected child's profile + (optional) remembered memory.
+def build_system_prompt(
+    profile: ChildProfile,
+    memory_text: str = "",
+    mode: str | None = None,
+    lesson: str = "",
+) -> str:
+    """Base persona + the selected child's profile + (optional) remembered memory,
+    and — when a learning `mode` is active — that mode's leading script + the
+    chosen `lesson` content.
 
     memory_text is a short AI-generated summary of past sessions (see
     memory_summarizer / child_store); omitted when empty (first session).
+
+    `mode`/`lesson` are optional: with no mode (free chat) the prompt is exactly
+    the persona + profile + memory, unchanged — so existing behavior is preserved.
     """
     parts = [_BASE_SYSTEM_PROMPT, "", profile.to_prompt_text()]
     if memory_text.strip():
@@ -85,6 +96,16 @@ def build_system_prompt(profile: ChildProfile, memory_text: str = "") -> str:
             "Hãy dùng những điều này một cách tự nhiên, ấm áp khi hợp lý. "
             "Use these naturally and warmly when it fits.",
         ]
+    # Learning mode (optional): append the pedagogy framing + today's lesson.
+    script = learning_modes.leading_script(mode)
+    if script:
+        parts += ["", script]
+        if lesson.strip():
+            parts += [
+                "",
+                "Nội dung bài hôm nay / Today's lesson:",
+                lesson.strip(),
+            ]
     return "\n".join(parts) + "\n"
 
 
@@ -141,15 +162,23 @@ def _project_from_adc() -> str | None:
 
 
 def build_live_connect_config(
-    profile: ChildProfile, memory_text: str = ""
+    profile: ChildProfile,
+    memory_text: str = "",
+    mode: str | None = None,
+    lesson: str = "",
 ) -> types.LiveConnectConfig:
     """LiveConnectConfig: audio-only out, both transcriptions, strict safety,
-    bilingual system prompt for the selected child + their remembered memory.
-    Mirrors the Phase 0 spike (config) with per-child personalization added."""
+    bilingual system prompt for the selected child + their remembered memory, and
+    (optionally) a learning mode's script + lesson. With no mode it is identical to
+    the free-chat config. Audio/safety/hints are unchanged regardless of mode."""
     return types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         system_instruction=types.Content(
-            parts=[types.Part(text=build_system_prompt(profile, memory_text))]
+            parts=[
+                types.Part(
+                    text=build_system_prompt(profile, memory_text, mode, lesson)
+                )
+            ]
         ),
         # Transcribe BOTH sides: input for dev visibility + language hinting,
         # output so the client can show what the companion said.
