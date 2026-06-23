@@ -84,6 +84,9 @@ Then in App Store Connect → your app → **TestFlight** → add **Internal Tes
 only (no external group). See `TESTFLIGHT-CHECKLIST` in the publish-prep plan for
 the App Store Connect record + privacy labels + review notes.
 
+Privacy Policy URL (hosted on GitHub Pages, `main /docs`):
+**https://phuc-nt.github.io/monami/privacy-policy.html**
+
 ## Secret hygiene
 
 - The token comes from Secret Manager via `--dart-define` only. Never paste it

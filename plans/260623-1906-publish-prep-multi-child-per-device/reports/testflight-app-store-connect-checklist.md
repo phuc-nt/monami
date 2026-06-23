@@ -8,9 +8,9 @@ privacy policy doc, RELEASE.md, deny-all Firestore rules file). These are the
 - [ ] Logged in to https://appstoreconnect.apple.com with team `75EN938B6L`.
 - [ ] Latest **Program License Agreement agreed** (developer.apple.com/account —
       a stale one blocks signing; you already hit + agreed this once).
-- [ ] Host the privacy policy and get a public URL:
-      take `docs/privacy-policy.md`, push to a GitHub repo + enable **GitHub
-      Pages** (or paste into a public **gist**), note the URL. Needed in step 2.
+- [x] Privacy policy is **hosted** (GitHub Pages on this repo, `main /docs`):
+      **https://phuc-nt.github.io/monami/privacy-policy.html** — paste this URL in
+      step 2.
 
 ## 1. Create the app record
 - [ ] App Store Connect → **Apps → +** → **New App**.
@@ -21,7 +21,7 @@ privacy policy doc, RELEASE.md, deny-all Firestore rules file). These are the
 - [ ] **Age rating: 4+** (answer the questionnaire "None" to all mature content).
       Do **NOT** enable **Kids Category** (it forbids the third-party data sharing
       that Vertex AI needs).
-- [ ] **Privacy Policy URL** → paste the URL from step 0.
+- [ ] **Privacy Policy URL** → `https://phuc-nt.github.io/monami/privacy-policy.html`
 - [ ] **App Privacy → Data Collection** (be accurate — this is what review checks):
   - **Audio Data** → Collected: **Yes** · Used for: **App Functionality** ·
     Linked to identity: **No** · Tracking: **No** · **Shared with third parties:
