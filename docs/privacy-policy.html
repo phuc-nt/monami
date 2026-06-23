@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monami — Privacy Policy</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e6e6; background: #14181c; }
+    a { color: #6fd3b0; }
+    code, .updated { color: #9fb0bb; }
+  }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; margin: 32px 0 8px; }
+  .updated { font-size: 0.9rem; color: #666; margin-bottom: 24px; }
+  a { color: #14b88a; }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  strong { font-weight: 600; }
+  .contact { margin-top: 40px; padding-top: 20px; border-top: 1px solid #8884; }
+</style>
+</head>
+<body>
+
+<h1>Monami — Privacy Policy</h1>
+<p class="updated">Last updated: 2026-06-23</p>
+
+<p>Monami is a friendly bilingual (Vietnamese/English) voice companion for young
+children. This policy explains what data the app handles and how. It is written
+plainly for parents.</p>
+
+<h2>Who we are</h2>
+<p>Monami is a small, independent project. Contact:
+<strong><a href="mailto:phucnt0@gmail.com">phucnt0@gmail.com</a></strong>.</p>
+<p>There are <strong>no user accounts</strong>. The app identifies a device by a
+random, anonymous identifier generated on the device — it is <strong>not</strong>
+linked to your name, email, phone number, or any real-world identity.</p>
+
+<h2>What data we handle</h2>
+<p><strong>Child profile (you create it):</strong></p>
+<ul>
+  <li>Child's first name (as you type it), gender, age, and interests.</li>
+  <li>Stored on our backend (Google Cloud Firestore, United States), keyed to the
+  device's anonymous identifier.</li>
+</ul>
+<p><strong>Conversation memory:</strong></p>
+<ul>
+  <li>After a chat, a short text summary of what the companion learned (e.g.
+  "likes dinosaurs") is stored, so it can greet the child warmly next time.</li>
+  <li>You can <strong>view, edit, or delete</strong> this memory at any time in the
+  app, and you can <strong>delete a child</strong> entirely (which deletes their
+  profile and memory).</li>
+</ul>
+<p><strong>Child's voice (audio):</strong></p>
+<ul>
+  <li>While the child talks, audio is streamed in real time to <strong>Google
+  Vertex AI (Gemini)</strong> to understand speech and reply. This is required for
+  the app to work.</li>
+  <li><strong>Audio is not stored</strong> by us or on the device — it is processed
+  live and discarded. Only the short text summary above is kept.</li>
+  <li>Google processes this audio as our AI provider; see Google Cloud's terms.</li>
+</ul>
+<p><strong>Guest mode:</strong></p>
+<ul>
+  <li>If you use "Khách (chơi nhanh)" / Guest, <strong>nothing is stored</strong> —
+  no profile, no memory. The session is forgotten when you leave.</li>
+</ul>
+
+<h2>What we do NOT do</h2>
+<ul>
+  <li>We do <strong>not</strong> sell or rent your data.</li>
+  <li>We do <strong>not</strong> use third-party advertising or analytics SDKs.</li>
+  <li>We do <strong>not</strong> ask for or collect contact info, location, photos,
+  or contacts.</li>
+  <li>We do <strong>not</strong> create accounts or track you across other apps.</li>
+</ul>
+
+<h2>Children's privacy</h2>
+<p>Monami is designed for young children and is intended to be set up and
+supervised by a parent or guardian. The only personal data is what a parent
+chooses to enter (name, gender, age, interests) plus the conversation summaries
+described above, all tied to an anonymous device identifier. A parent can review
+and delete this data in the app at any time. For questions or deletion requests,
+email <a href="mailto:phucnt0@gmail.com">phucnt0@gmail.com</a>.</p>
+
+<h2>Data retention &amp; deletion</h2>
+<ul>
+  <li>Profiles and memory are kept until <strong>you delete them</strong> in the app
+  (delete a child, or clear a child's memory).</li>
+  <li>Deleting the app does not by itself delete server-side data, but you can
+  request full deletion by emailing
+  <a href="mailto:phucnt0@gmail.com">phucnt0@gmail.com</a> with no need to identify
+  yourself beyond the request.</li>
+</ul>
+
+<h2>Where data is processed</h2>
+<ul>
+  <li>Backend + storage: Google Cloud (Firestore, Cloud Run) in the United States.</li>
+  <li>AI speech/voice: Google Vertex AI (Gemini) in the United States.</li>
+</ul>
+
+<h2>Changes</h2>
+<p>We may update this policy; the "Last updated" date above will change. Material
+changes will be noted in the app's release notes.</p>
+
+<div class="contact">
+<h2>Contact</h2>
+<p><a href="mailto:phucnt0@gmail.com">phucnt0@gmail.com</a></p>
+</div>
+
+</body>
+</html>
