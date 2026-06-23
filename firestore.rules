@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// Monami stores all data under devices/{deviceId}/children/{childId}, written
+// ONLY by the backend service account (Cloud Run, Admin SDK). The Flutter app
+// never uses the Firestore client SDK — it talks to the backend over REST. So we
+// deny ALL client-SDK access here as defense-in-depth: a leaked client config
+// cannot read or write any document. The Admin SDK bypasses these rules, so the
+// backend is unaffected.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
