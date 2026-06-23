@@ -1,12 +1,15 @@
-# monami voice backend (Phase 1)
+# Monami voice backend
 
-Local Python relay between the Flutter client and Gemini Live native-audio.
+Python FastAPI relay between the Flutter client and Gemini Live native-audio.
 Holds the GCP credential (the client never does), opens one Gemini Live session
-per WebSocket connection, and relays audio + transcripts both ways.
+per WebSocket connection, relays audio + transcripts both ways, and exposes a REST
+API for child-profile CRUD + per-child memory. Deployed on Google Cloud Run
+(scale-to-zero, shared-token gated); storage in Firestore.
 
-This is the real backend (not throwaway like `spike/`). It reuses the config
-verified in the Phase 0 spike: `us-central1`, `gemini-live-2.5-flash-native-audio`,
-`language_hints=["vi-VN","en-US"]`, trailing-silence VAD, AUDIO-only, strict safety.
+Verified config: `us-central1`, `gemini-live-2.5-flash-native-audio`,
+`language_hints=["vi-VN","en-US"]`, trailing-silence VAD, AUDIO-only, strict
+safety. See [`../README.md`](../README.md) for the project overview and
+[`deploy.md`](deploy.md) for the Cloud Run runbook.
 
 ## Prerequisites
 

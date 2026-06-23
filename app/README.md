@@ -1,11 +1,13 @@
-# monami app (Flutter voice client, Phase 2)
+# Monami app (Flutter voice client)
 
-Thin macOS-desktop voice client: captures mic as 16 kHz mono PCM, streams it to
-the local backend over WebSocket, plays back the 24 kHz PCM reply, and shows the
-conversation as a chat. One tap opens the mic (continuous streaming, server VAD
-splits turns); a second tap stops.
+The Flutter client (iOS + macOS). Captures mic as 16 kHz mono PCM, streams it to
+the backend over WebSocket, plays back the 24 kHz PCM reply, and shows a reactive
+LED robot face. One tap opens the mic (continuous streaming, server VAD splits
+turns); a second tap stops. Child profiles + memory are managed over a REST API.
 
-Built/validated on **macOS desktop first**; iPad/phone/web are later phases.
+**iOS is the primary platform** (on TestFlight); macOS is handy for development.
+See [`../README.md`](../README.md) for the project overview and
+[`RELEASE.md`](RELEASE.md) for the TestFlight build steps.
 
 ## Prerequisites
 
