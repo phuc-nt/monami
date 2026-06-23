@@ -44,7 +44,7 @@ Foundation design + decisions are locked in the approved brainstorm:
 |-------|------|--------|-----------|
 | 1 | [Backend Data Model and REST CRUD](./phase-01-backend-data-model-and-rest-crud.md) | ✅ completed | — |
 | 2 | [App Device Identity and Profile Service](./phase-02-app-device-identity-and-profile-service.md) | ✅ completed | 1 |
-| 3 | [App Profile Management UI](./phase-03-app-profile-management-ui.md) | pending | 2 |
+| 3 | [App Profile Management UI](./phase-03-app-profile-management-ui.md) | ✅ completed | 2 |
 | 4 | [Gendered Robot Face](./phase-04-gendered-robot-face.md) | pending | 3 |
 | 5 | [Quick Guest Mode](./phase-05-quick-guest-mode.md) | pending | 3 |
 | 6 | [TestFlight Release and Pre-Publish Polish](./phase-06-testflight-release-and-pre-publish-polish.md) | pending | 1-5 |

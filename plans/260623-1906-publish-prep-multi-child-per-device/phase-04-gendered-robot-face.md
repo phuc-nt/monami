@@ -58,6 +58,12 @@ pole — pure art/UI, isolated so it can't block backend/CRUD.
 
 ## Implementation Steps
 
+0. **Carry-overs from phase-3 review (do alongside the palette work):** move the
+   stand-in `childTint(gender)` out of `profile_picker.dart` into the palette
+   module (`app_theme.dart` `paletteFor`) so `main.dart` stops importing the
+   picker for color; and hoist the single `ChildService` out of
+   `MonamiApp.build()` into a stateful holder (it's currently rebuilt per build —
+   negligible now, but more screens depend on it from here on).
 1. Define `FaceVariant` + map from `gender`; default/guest → chosen neutral variant.
 2. Refactor `robot_face.dart` painter into shared-core + variant params (no logic dup).
 3. Implement girl (soft/rounded, warm) and boy (angular/stronger, cool) shape + palette.
