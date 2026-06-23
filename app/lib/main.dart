@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'app_config.dart';
 import 'profile_picker.dart';
+import 'responsive.dart';
 import 'robot_face.dart';
 import 'voice_controller.dart';
 
@@ -114,56 +115,58 @@ class _VoiceHomeState extends State<VoiceHome> {
             icon: const Icon(Icons.arrow_back),
             onPressed: _leave,
           ),
-          title: Text('Bạn của ${widget.child.name}'),
-          actions: [
-            // Dev toggle: show/hide the transcript chat.
-            IconButton(
-              tooltip: 'Hiện/ẩn transcript (dev)',
-              icon: Icon(_showTranscript ? Icons.subtitles : Icons.subtitles_off),
-              onPressed: () => setState(() => _showTranscript = !_showTranscript),
-            ),
-          ],
+          // Long-press the title to toggle the dev transcript — hidden from a
+          // child (no visible button), reachable by the grown-up.
+          title: GestureDetector(
+            onLongPress: () =>
+                setState(() => _showTranscript = !_showTranscript),
+            child: Text('Bạn của ${widget.child.name}'),
+          ),
         ),
-        body: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // The robot face is the hero.
-                  Expanded(
-                    flex: _showTranscript ? 3 : 5,
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 560),
-                        child: RobotFace(
-                          expression: _expressionFor(_controller),
-                          litColor: widget.child.color,
+        body: SafeArea(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final pad = context.isTablet ? 40.0 : 24.0;
+              return Padding(
+                padding: EdgeInsets.all(pad),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // The robot face is the hero (bigger cap on a tablet).
+                    Expanded(
+                      flex: _showTranscript ? 3 : 5,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                              maxWidth: context.isTablet ? 720 : 560),
+                          child: RobotFace(
+                            expression: _expressionFor(_controller),
+                            litColor: widget.child.color,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  _StatusLine(
-                    state: _controller.state,
-                    error: _controller.error,
-                    onReconnect: _controller.reconnect,
-                  ),
-                  if (_showTranscript) ...[
                     const SizedBox(height: 12),
-                    Expanded(
-                      flex: 2,
-                      child: _TranscriptView(turns: _controller.turns),
+                    _StatusLine(
+                      state: _controller.state,
+                      error: _controller.error,
+                      onReconnect: _controller.reconnect,
                     ),
+                    if (_showTranscript) ...[
+                      const SizedBox(height: 12),
+                      Expanded(
+                        flex: 2,
+                        child: _TranscriptView(turns: _controller.turns),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    _TalkButton(controller: _controller),
                   ],
-                  const SizedBox(height: 20),
-                  _TalkButton(controller: _controller),
-                ],
-              ),
-            );
-          },
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -305,7 +308,7 @@ class _TalkButton extends StatelessWidget {
     return GestureDetector(
       onTap: ready ? () => controller.toggleMic() : null,
       child: Container(
-        height: 96,
+        height: context.isTablet ? 120 : 96,
         decoration: BoxDecoration(
           color: ready ? color : Colors.grey,
           borderRadius: BorderRadius.circular(48),

@@ -140,12 +140,26 @@ class VoiceController extends ChangeNotifier {
     });
   }
 
+  // Debounce rapid double-taps (a 5-year-old mashing the button) so a quick
+  // second tap doesn't immediately toggle the mic back off.
+  DateTime? _lastToggle;
+  static const _toggleDebounce = Duration(milliseconds: 500);
+
   /// Tap the talk button: toggle the mic open/closed. Ignored until connected
   /// (the UI also disables the button while connecting/disconnected).
   Future<void> toggleMic() async {
     if (_state == VoiceState.disconnected || _state == VoiceState.connecting) {
       return;
     }
+    // Only debounce RE-OPENING the mic (the rapid-mash pattern). A stop tap is
+    // a deliberate action and is always honored — never leave the mic stuck open.
+    final now = DateTime.now();
+    if (!_micOpen &&
+        _lastToggle != null &&
+        now.difference(_lastToggle!) < _toggleDebounce) {
+      return; // ignore a too-fast re-open
+    }
+    _lastToggle = now;
     if (_micOpen) {
       await _stopMic();
       _setState(VoiceState.idle);

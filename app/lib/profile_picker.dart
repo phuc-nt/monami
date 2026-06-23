@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'responsive.dart';
 import 'robot_face.dart';
 
 /// A selectable child. `id` must match the backend profile ids (vy, phong).
@@ -30,31 +31,68 @@ class ProfilePicker extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1016),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 32),
-            const Text(
-              'Ai đang chơi nào?',
-              style: TextStyle(
-                  color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text('Chạm vào tên của con',
-                style: TextStyle(color: Colors.white70, fontSize: 16)),
-            Expanded(
-              child: Center(
-                child: Wrap(
-                  spacing: 24,
-                  runSpacing: 24,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    for (final child in kChildren)
-                      _ChildCard(child: child, onTap: () => onPick(child)),
-                  ],
+        child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isTablet = context.isTablet;
+              // Cards sit side-by-side on a wide screen (tablet/landscape), and
+              // stack vertically on a narrow phone. Width is derived from the
+              // available space so they never overflow.
+              final wide = constraints.maxWidth >= 560;
+              final cardW = wide
+                  ? (constraints.maxWidth - 72) / 2
+                  : constraints.maxWidth * 0.7;
+              final cards = [
+                for (final child in kChildren)
+                  _ChildCard(
+                    child: child,
+                    width: cardW.clamp(160.0, 320.0),
+                    onTap: () => onPick(child),
+                  ),
+              ];
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(height: isTablet ? 48 : 24),
+                      Text(
+                        'Ai đang chơi nào?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: isTablet ? 40 : 28,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Chạm vào tên của con',
+                          style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: isTablet ? 22 : 16)),
+                      SizedBox(height: isTablet ? 48 : 32),
+                      if (wide)
+                        Wrap(
+                          spacing: 24,
+                          runSpacing: 24,
+                          alignment: WrapAlignment.center,
+                          children: cards,
+                        )
+                      else
+                        Column(
+                          children: [
+                            for (var i = 0; i < cards.length; i++) ...[
+                              cards[i],
+                              if (i < cards.length - 1)
+                                const SizedBox(height: 24),
+                            ],
+                          ],
+                        ),
+                      SizedBox(height: isTablet ? 48 : 24),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-          ],
+              );
+            },
         ),
       ),
     );
@@ -62,16 +100,19 @@ class ProfilePicker extends StatelessWidget {
 }
 
 class _ChildCard extends StatelessWidget {
-  const _ChildCard({required this.child, required this.onTap});
+  const _ChildCard({required this.child, required this.width, required this.onTap});
   final ChildOption child;
+  final double width;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    // The robot face keeps its 32:20 ratio; size it to the card width.
+    final faceH = width * (20 / 32) * 0.85;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 220,
+        width: width,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: child.color.withValues(alpha: 0.12),
@@ -83,7 +124,7 @@ class _ChildCard extends StatelessWidget {
           children: [
             // A happy tinted robot face as the avatar.
             SizedBox(
-              height: 130,
+              height: faceH,
               child: RobotFace(
                 expression: RobotExpression.happy,
                 litColor: child.color,
@@ -94,7 +135,7 @@ class _ChildCard extends StatelessWidget {
               child.name,
               style: TextStyle(
                   color: child.color,
-                  fontSize: 24,
+                  fontSize: context.isTablet ? 32 : 24,
                   fontWeight: FontWeight.bold),
             ),
           ],

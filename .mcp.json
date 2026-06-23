@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "XcodeBuildMCP": {
+      "type": "stdio",
+      "command": "/opt/homebrew/bin/xcodebuildmcp",
+      "args": [
+        "mcp"
+      ],
+      "env": {
+        "INCREMENTAL_BUILDS_ENABLED": "true",
+        "XCODEBUILDMCP_DYNAMIC_TOOLS": "true",
+        "XCODEBUILDMCP_ENABLED_WORKFLOWS": "session-management,simulator,ui-automation,debugging,project-discovery",
+        "XCODEBUILDMCP_PLATFORM": "iOS",
+        "XCODEBUILDMCP_WORKSPACE_PATH": "/Users/phucnt/workspace/monami/app/ios/Runner.xcworkspace",
+        "XCODEBUILDMCP_SCHEME": "Runner"
+      }
+    }
+  }
+}

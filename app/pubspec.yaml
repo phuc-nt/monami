@@ -56,6 +56,18 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Generates the iOS/macOS app icon sets from a single source PNG.
+  flutter_launcher_icons: ^0.14.0
+
+# App icon config (run: dart run flutter_launcher_icons).
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  ios: true
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+  remove_alpha_ios: true
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
