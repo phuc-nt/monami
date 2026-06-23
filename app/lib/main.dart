@@ -59,10 +59,15 @@ class MonamiApp extends StatelessWidget {
 }
 
 class VoiceHome extends StatefulWidget {
-  const VoiceHome({super.key, required this.child});
+  const VoiceHome({super.key, required this.child, this.deviceId = ''});
 
   /// The selected child (drives the profile + theme color).
   final ChildOption child;
+
+  /// This install's deviceId, scoping the child + memory on the backend. Empty
+  /// runs an unscoped (guest-like) session — phase 3 supplies the real id once
+  /// the picker is backed by the device's children.
+  final String deviceId;
 
   @override
   State<VoiceHome> createState() => _VoiceHomeState();
@@ -79,6 +84,7 @@ class _VoiceHomeState extends State<VoiceHome> {
       profileId: widget.child.id,
       base: AppConfig.wsBase,
       token: AppConfig.token,
+      deviceId: widget.deviceId,
     );
     _controller.connect();
   }

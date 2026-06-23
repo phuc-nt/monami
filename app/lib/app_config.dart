@@ -20,4 +20,26 @@ class AppConfig {
 
   /// Shared-secret token for the backend auth gate. Empty = local dev (no gate).
   static const String token = String.fromEnvironment('MONAMI_TOKEN');
+
+  /// REST base = the ORIGIN of [wsBase]: ws→http, wss→https, path stripped.
+  /// The REST endpoints (e.g. `/devices/{id}/children`) hang off the origin, NOT
+  /// off the `/ws/voice` WS path — so we must drop the path, not just swap scheme.
+  /// e.g. `wss://foo.run.app/ws/voice` → `https://foo.run.app`.
+  static String get restBase => restBaseOf(wsBase);
+
+  /// Pure helper (testable): origin of a ws/wss URL with the path removed.
+  static String restBaseOf(String ws) {
+    final uri = Uri.parse(ws);
+    final scheme = switch (uri.scheme) {
+      'wss' => 'https',
+      'ws' => 'http',
+      final s => s, // already http(s) or unknown — leave as-is
+    };
+    // Rebuild origin only: scheme + authority (host[:port]); drop path/query.
+    return Uri(
+      scheme: scheme,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+    ).toString();
+  }
 }

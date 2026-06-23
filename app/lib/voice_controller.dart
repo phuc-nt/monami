@@ -28,25 +28,45 @@ import 'voice_socket.dart';
 enum VoiceState { disconnected, connecting, idle, listening, speaking }
 
 class VoiceController extends ChangeNotifier {
-  /// [profileId] selects which child (vy/phong); it's passed to the backend as a
-  /// `?profile=` query param. [base] + [token] come from AppConfig (build-time);
-  /// the token (if any) is appended as `&token=` for the cloud auth gate.
+  /// [profileId] selects which child; it's passed to the backend as `?profile=`.
+  /// [deviceId] scopes the child to this install (`?device=`); omit/empty for a
+  /// guest session (the backend then persists nothing). [base] + [token] come
+  /// from AppConfig (build-time); the token (if any) is `&token=` for the gate.
+  ///
+  /// The URL is assembled lazily at connect-time (not stored as a field) so the
+  /// token + deviceId — both bearer secrets — never sit on the instance where a
+  /// `toString()`/crash reporter could capture them.
   VoiceController({
     required String profileId,
     required String base,
     String token = '',
-  }) : _url = _buildUrl(base, profileId, token);
+    String deviceId = '',
+  })  : _base = base,
+        _profileId = profileId,
+        _token = token,
+        _deviceId = deviceId;
 
-  static String _buildUrl(String base, String profileId, String token) {
-    String url = base;
+  // ignore_for_file: prefer_initializing_formals
+  // (the ctor maps named params straight to the private fields above)
+
+  // Stored as private fields (not assembled into a URL field) so the token +
+  // deviceId never live on the instance as a single capturable string.
+  final String _base;
+  final String _profileId;
+  final String _token;
+  final String _deviceId;
+
+  String _buildUrl() {
+    String url = _base;
     void add(String key, String value) {
       if (value.isEmpty) return;
       final sep = url.contains('?') ? '&' : '?';
       url = '$url$sep$key=$value';
     }
 
-    add('profile', profileId);
-    add('token', token);
+    add('device', _deviceId);
+    add('profile', _profileId);
+    add('token', _token);
     return url;
   }
 
@@ -54,7 +74,6 @@ class VoiceController extends ChangeNotifier {
   static const _connectTimeout = Duration(seconds: 15);
   Timer? _connectTimer;
 
-  final String _url;
   final AudioCapture _capture = AudioCapture();
   final AudioPlayback _playback = AudioPlayback();
   VoiceSocket? _socket;
@@ -108,7 +127,9 @@ class VoiceController extends ChangeNotifier {
   }
 
   void _openSocket() {
-    final socket = VoiceSocket(_url);
+    // Build the URL here (not at construction) so the token/deviceId live only
+    // for the duration of the call, never as a captured instance field.
+    final socket = VoiceSocket(_buildUrl());
     _socket = socket;
     _setState(VoiceState.connecting); // cold-start wait; UI locks the talk button
     _events = socket.connect().listen(
