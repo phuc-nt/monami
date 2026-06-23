@@ -74,7 +74,7 @@ def build_system_prompt(profile: ChildProfile, memory_text: str = "") -> str:
     """Base persona + the selected child's profile + (optional) remembered memory.
 
     memory_text is a short AI-generated summary of past sessions (see
-    memory_summarizer / profile_store); omitted when empty (first session).
+    memory_summarizer / child_store); omitted when empty (first session).
     """
     parts = [_BASE_SYSTEM_PROMPT, "", profile.to_prompt_text()]
     if memory_text.strip():

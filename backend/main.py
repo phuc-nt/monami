@@ -29,6 +29,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     pass
 
+from child_rest_api import router as children_router
 from gemini_session import run_session
 
 logging.basicConfig(
@@ -37,18 +38,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("backend")
 
-app = FastAPI(title="monami voice backend", version="0.1.0")
+app = FastAPI(title="monami voice backend", version="0.2.0")
+app.include_router(children_router)
 
 
 @app.on_event("startup")
 async def _log_startup_config() -> None:
     # Surface the memory backend at boot so a misconfig (e.g. on Cloud Run) is
     # obvious in the logs rather than silently losing memory.
-    import profile_store
+    import child_store
 
     logger.info(
         "startup: memory_backend=%s auth=%s",
-        profile_store._backend(),
+        child_store._backend(),
         "on" if os.environ.get("MONAMI_AUTH_TOKEN") else "off (open)",
     )
 
@@ -80,11 +82,21 @@ async def ws_voice(websocket: WebSocket) -> None:
         logger.warning("rejected connect: bad/missing token (%s)", websocket.client)
         await websocket.close(code=1008)
         return
-    # Which child is talking, e.g. ws://…/ws/voice?profile=vy (defaults if absent).
-    profile_id = websocket.query_params.get("profile")
-    logger.info("client connected: %s (profile=%s)", websocket.client, profile_id)
+    # Routing params: device = the app's anonymous per-install id; profile = the
+    # child id under that device. e.g. ws://…/ws/voice?device=<uuid>&profile=<cid>
+    device_id = websocket.query_params.get("device")
+    child_id = websocket.query_params.get("profile")
+    # GUEST INVARIANT — computed from the RAW params, BEFORE any profile lookup.
+    # Guest = no device, or the explicit "guest" sentinel. A guest session must
+    # never load or save memory. (An old build sending only ?profile=vy with no
+    # device also lands here as guest: no crash, no write — the cutover shim.)
+    is_guest = (not device_id) or child_id == "guest"
+    # Deliberately do NOT log device/child ids (they're bearer capabilities).
+    logger.info("client connected: %s (guest=%s)", websocket.client, is_guest)
     try:
-        await run_session(_StarletteWsAdapter(websocket), profile_id)
+        await run_session(
+            _StarletteWsAdapter(websocket), device_id, child_id, is_guest
+        )
     except WebSocketDisconnect:
         logger.info("client disconnected")
     finally:

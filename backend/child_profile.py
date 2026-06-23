@@ -1,15 +1,22 @@
-"""Child profiles: a small registry of the children the companion talks to.
+"""Child profile: the fixed facts the companion should feel in its replies.
 
-Two children for now (Vy + Phong), each a `ChildProfile`. The profile is the
-fixed, hand-set part of who the child is (name/age/interests); the changing part
-— what the companion remembers from past sessions — is stored separately and
-loaded by `profile_store`. Keep profile text short and concrete: long text makes
-the system prompt brittle.
+A profile is who the child is (name/age/gender/interests) — the hand-set part.
+The changing part (what the companion remembers across sessions) lives in the
+child doc's memory field and is loaded by `child_store`.
+
+Profiles are no longer a hardcoded registry: they come from the per-device store
+(`child_store`). This module keeps the `ChildProfile` shape, the prompt rendering,
+and a neutral GUEST profile used by quick/guest mode (no name, no persistence).
+Keep profile text short and concrete: long text makes the system prompt brittle.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
+# Gender drives the app's face variant; the backend only uses it for a light
+# pronoun/tone hint. "neutral" is the guest / unspecified case.
+VALID_GENDERS = ("boy", "girl")
 
 
 @dataclass(frozen=True)
@@ -20,46 +27,47 @@ class ChildProfile:
     name: str
     age: int
     interests: list[str] = field(default_factory=list)
+    gender: str = "neutral"  # "boy" | "girl" | "neutral"
 
     def to_prompt_text(self) -> str:
         """Render the profile as a short bilingual block for the system prompt."""
         interests = ", ".join(self.interests) if self.interests else "(chưa rõ)"
+        gender_line = ""
+        if self.gender == "girl":
+            gender_line = "- Bé là bạn gái / The child is a girl.\n"
+        elif self.gender == "boy":
+            gender_line = "- Bé là bạn trai / The child is a boy.\n"
         return (
             "Thông tin về bé / About the child:\n"
             f"- Tên / Name: {self.name}\n"
             f"- Tuổi / Age: {self.age}\n"
+            f"{gender_line}"
             f"- Bé thích / Likes: {interests}\n"
             "Hãy gọi tên bé một cách tự nhiên và thỉnh thoảng nhắc tới điều bé thích. "
             "Greet the child by name naturally and occasionally reference what they like."
         )
 
 
-# The children. Keys are the stable profile ids used by the client + storage.
-PROFILES: dict[str, ChildProfile] = {
-    "vy": ChildProfile(
-        profile_id="vy",
-        name="Vy",
-        age=5,
-        interests=["Elsa", "công chúa / princesses", "kể chuyện / stories"],
-    ),
-    "phong": ChildProfile(
-        profile_id="phong",
-        name="Phong",
-        age=5,
-        interests=["khủng long / dinosaurs", "xe ô tô / cars", "khám phá / exploring"],
-    ),
-}
-
-# Used when no/unknown profile id is supplied (with a logged warning at the call site).
-DEFAULT_PROFILE_ID = "vy"
+# Neutral companion used by quick/guest mode: no name, no stored memory. Kept
+# warm + age-appropriate so a guest session feels the same minus personalization.
+GUEST_PROFILE = ChildProfile(
+    profile_id="guest",
+    name="bạn nhỏ",  # "little friend" — a gentle generic address
+    age=5,
+    interests=[],
+    gender="neutral",
+)
 
 
-def get_profile(profile_id: str | None) -> ChildProfile:
-    """Resolve a profile id to a ChildProfile, falling back to the default.
-
-    Returns the default profile for None or an unknown id; callers should log a
-    warning when they pass something that didn't resolve.
-    """
-    if profile_id and profile_id in PROFILES:
-        return PROFILES[profile_id]
-    return PROFILES[DEFAULT_PROFILE_ID]
+def profile_from_record(record: dict) -> ChildProfile:
+    """Build a ChildProfile from a stored child dict (see child_store)."""
+    gender = record.get("gender")
+    if gender not in VALID_GENDERS:
+        gender = "neutral"
+    return ChildProfile(
+        profile_id=str(record.get("id", "")),
+        name=str(record.get("name", "bạn nhỏ")),
+        age=int(record.get("age", 5)),
+        interests=list(record.get("interests", [])),
+        gender=gender,
+    )

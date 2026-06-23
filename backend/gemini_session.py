@@ -35,9 +35,9 @@ from google import genai
 from google.genai import types
 
 import gemini_session_config as cfg
-from child_profile import get_profile
+from child_profile import GUEST_PROFILE, profile_from_record
+from child_store import get_child, load_memory, save_memory
 from memory_summarizer import summarize
-from profile_store import load_memory, save_memory
 
 logger = logging.getLogger("gemini_session")
 
@@ -134,26 +134,39 @@ async def _downlink(ws, session, transcript: list[tuple[str, str]]) -> None:
             return
 
 
-async def run_session(ws, profile_id: str | None = None) -> None:
+async def run_session(
+    ws,
+    device_id: str | None = None,
+    child_id: str | None = None,
+    is_guest: bool = False,
+) -> None:
     """Open a Gemini Live session for one client connection and relay both ways.
 
-    Resolves the selected child (profile_id), loads their remembered memory, and
-    builds the per-child config. Spawns the uplink + downlink pumps; when either
-    finishes (client disconnect or session end) the other is cancelled and the
-    Live session is closed.
+    `is_guest` MUST be computed by the caller from the RAW connection params
+    (before any profile resolution) — a guest session loads and saves NO memory.
+    For a registered child, (device_id, child_id) locate the child doc; if it
+    can't be resolved we fall back to the neutral GUEST profile and treat the
+    session as guest (no persistence), never another child's memory.
+
+    Spawns the uplink + downlink pumps; when either finishes (client disconnect or
+    session end) the other is cancelled and the Live session is closed.
     """
-    profile = get_profile(profile_id)
-    if profile_id and profile_id != profile.profile_id:
-        logger.warning("unknown profile id %r — falling back to %s", profile_id, profile.profile_id)
-    memory_text = load_memory(profile.profile_id)
+    persist = not is_guest and bool(device_id) and bool(child_id)
+    record = get_child(device_id, child_id) if persist else None
+    if persist and record is None:
+        # Unknown child under this device: don't write to anyone — go guest.
+        logger.warning("child not found for device; running as guest (no memory)")
+        persist = False
+    profile = profile_from_record(record) if record else GUEST_PROFILE
+    memory_text = load_memory(device_id, child_id) if persist else ""
 
     client = _make_client()
     model = cfg.model_id()
     config = cfg.build_live_connect_config(profile, memory_text)
 
     logger.info(
-        "opening Gemini Live session: model=%s profile=%s (memory=%s)",
-        model, profile.profile_id, "yes" if memory_text else "none",
+        "opening Gemini Live session: model=%s persist=%s (memory=%s)",
+        model, persist, "yes" if memory_text else "none",
     )
     transcript: list[tuple[str, str]] = []
     try:
@@ -185,8 +198,12 @@ async def run_session(ws, profile_id: str | None = None) -> None:
         # Best-effort: fold this session into the child's memory. Bounded by a
         # timeout so teardown can't hang. The client has already disconnected by
         # now; this lingers the server task up to the timeout — fine at this
-        # app's scale (2 kids). Detach it if concurrency ever grows.
-        await _update_memory(client, profile.profile_id, memory_text, transcript)
+        # app's scale. Detach it if concurrency ever grows.
+        # GUEST INVARIANT: only persist when this is a real, resolved child —
+        # never for a guest/unknown session (which would otherwise leak into some
+        # other child's memory).
+        if persist:
+            await _update_memory(client, device_id, child_id, memory_text, transcript)
 
 
 # A session shorter than this (few transcript lines) isn't worth summarizing —
@@ -197,11 +214,16 @@ _SUMMARY_TIMEOUT_S = 20
 
 async def _update_memory(
     client: genai.Client,
-    profile_id: str,
+    device_id: str,
+    child_id: str,
     prior_summary: str,
     transcript: list[tuple[str, str]],
 ) -> None:
-    """Summarize the session into the child's memory and save it. Best-effort."""
+    """Summarize the session into the child's memory and save it. Best-effort.
+
+    Only ever called for a resolved (device_id, child_id) — guests are gated out
+    by the caller, so this never falls back to a default child.
+    """
     if len(transcript) < _MIN_TRANSCRIPT_LINES:
         return
     transcript_text = "\n".join(f"{who}: {text}" for who, text in transcript)
@@ -213,11 +235,11 @@ async def _update_memory(
             timeout=_SUMMARY_TIMEOUT_S,
         )
     except asyncio.TimeoutError:
-        logger.warning("memory summary timed out for %s; keeping prior", profile_id)
+        logger.warning("memory summary timed out; keeping prior")
         return
     if new_summary and new_summary != prior_summary:
-        save_memory(profile_id, new_summary, updated_at=_now_iso())
-        logger.info("memory updated for %s", profile_id)
+        save_memory(device_id, child_id, new_summary, updated_at=_now_iso())
+        logger.info("memory updated")
 
 
 def _now_iso() -> str:

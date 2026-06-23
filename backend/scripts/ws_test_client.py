@@ -117,7 +117,9 @@ def _with_params(url: str, **params: str | None) -> str:
 
 async def run(args: argparse.Namespace) -> None:
     pcm = _read_wav_pcm(Path(args.wav))
-    url = _with_params(args.url, profile=args.profile, token=args.token)
+    url = _with_params(
+        args.url, device=args.device, profile=args.profile, token=args.token
+    )
     print(f"Connecting to {url} …")
     async with websockets.connect(url, max_size=None) as ws:
         print(f"Streaming {args.wav} ({len(pcm)} bytes)…")
@@ -147,7 +149,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--save-audio", metavar="OUT.wav", help="save the response audio to this path"
     )
     p.add_argument(
-        "--profile", help="child profile id (e.g. vy, phong); added as ?profile="
+        "--device", help="device id (the app's per-install uuid); added as ?device="
+    )
+    p.add_argument(
+        "--profile", help="child id under the device; added as ?profile= "
+        "(omit device, or use --profile guest, for a no-memory guest session)"
     )
     p.add_argument(
         "--token", help="shared-secret token; added as &token= (cloud auth)"
