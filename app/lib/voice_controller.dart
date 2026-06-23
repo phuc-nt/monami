@@ -27,6 +27,30 @@ import 'voice_socket.dart';
 // the UI shows a friendly "waking" state and locks the talk button until idle.
 enum VoiceState { disconnected, connecting, idle, listening, speaking }
 
+/// Build the WS URL for a session. Empty values are dropped, so a guest session
+/// (empty `deviceId`) connects with `?profile=guest` and NO `device` — which is
+/// exactly what makes the backend persist nothing. Pure + side-effect-free so it
+/// can be unit-tested without constructing a VoiceController (which would need
+/// platform plugins). Order: device, profile, token.
+String buildConnectUrl(
+  String base, {
+  required String profileId,
+  String token = '',
+  String deviceId = '',
+}) {
+  String url = base;
+  void add(String key, String value) {
+    if (value.isEmpty) return;
+    final sep = url.contains('?') ? '&' : '?';
+    url = '$url$sep$key=$value';
+  }
+
+  add('device', deviceId);
+  add('profile', profileId);
+  add('token', token);
+  return url;
+}
+
 class VoiceController extends ChangeNotifier {
   /// [profileId] selects which child; it's passed to the backend as `?profile=`.
   /// [deviceId] scopes the child to this install (`?device=`); omit/empty for a
@@ -56,19 +80,8 @@ class VoiceController extends ChangeNotifier {
   final String _token;
   final String _deviceId;
 
-  String _buildUrl() {
-    String url = _base;
-    void add(String key, String value) {
-      if (value.isEmpty) return;
-      final sep = url.contains('?') ? '&' : '?';
-      url = '$url$sep$key=$value';
-    }
-
-    add('device', _deviceId);
-    add('profile', _profileId);
-    add('token', _token);
-    return url;
-  }
+  String _buildUrl() =>
+      buildConnectUrl(_base, profileId: _profileId, token: _token, deviceId: _deviceId);
 
   // How long to wait for the backend (incl. cold start) before showing an error.
   static const _connectTimeout = Duration(seconds: 15);
