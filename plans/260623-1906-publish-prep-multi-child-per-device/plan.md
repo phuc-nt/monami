@@ -1,7 +1,7 @@
 ---
 title: "Publish Prep: Multi-Child Per Device + TestFlight"
 description: "Turn monami from 2 hardcoded children into an anonymous per-device multi-child app: Firestore devices/{deviceId}/children/{childId}, backend REST CRUD + memory edit/clear, app profile-management UI, two gendered robot-face variants, quick/guest mode, then a real TestFlight build. Touches the data model + public WS/REST contracts."
-status: pending
+status: completed
 priority: P1
 created: 2026-06-23
 blockedBy: [260622-2119-two-profiles-and-memory, 260622-2337-deploy-cloud-run]
@@ -47,7 +47,7 @@ Foundation design + decisions are locked in the approved brainstorm:
 | 3 | [App Profile Management UI](./phase-03-app-profile-management-ui.md) | ✅ completed | 2 |
 | 4 | [Gendered Robot Face](./phase-04-gendered-robot-face.md) | ✅ completed | 3 |
 | 5 | [Quick Guest Mode](./phase-05-quick-guest-mode.md) | ✅ completed | 3 |
-| 6 | [TestFlight Release and Pre-Publish Polish](./phase-06-testflight-release-and-pre-publish-polish.md) | pending | 1-5 |
+| 6 | [TestFlight Release and Pre-Publish Polish](./phase-06-testflight-release-and-pre-publish-polish.md) | ✅ completed (code/asset/doc; Apple-side steps are user's checklist) | 1-5 |
 
 **Ordering (strictly serial 1→2→3→4→5→6).** Red-team correction: phases 3, 4, 5 are
 **NOT** parallel — they all edit `profile_picker.dart` and `main.dart` (3 reworks

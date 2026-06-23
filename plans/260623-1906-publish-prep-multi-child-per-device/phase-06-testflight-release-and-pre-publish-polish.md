@@ -1,7 +1,7 @@
 ---
 phase: 6
 title: "TestFlight Release and Pre-Publish Polish"
-status: pending
+status: completed
 priority: P1
 effort: "1.5d"
 dependencies: [1, 2, 3, 4, 5]
