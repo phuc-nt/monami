@@ -142,11 +142,14 @@ class _ProfilePickerState extends State<ProfilePicker> {
   Widget _loaded(BuildContext context) {
     final isTablet = context.isTablet;
     return LayoutBuilder(builder: (context, constraints) {
-      final wide = constraints.maxWidth >= 560;
-      final cardW = (wide
-              ? (constraints.maxWidth - 72) / 2
-              : constraints.maxWidth * 0.7)
-          .clamp(160.0, 320.0);
+      // Cap the content column so it stays centered + balanced on a wide iPad
+      // (portrait or landscape) instead of stretching edge-to-edge, while still
+      // filling a narrow phone. The cards lay out inside this capped width.
+      final contentMax = constraints.maxWidth.clamp(0.0, 720.0);
+      // Two cards side-by-side once there's room, else one per row.
+      final wide = contentMax >= 560;
+      final cardW = (wide ? (contentMax - 24 - 40) / 2 : contentMax * 0.6)
+          .clamp(160.0, 300.0);
 
       final tiles = <Widget>[
         for (final child in _children)
@@ -163,47 +166,86 @@ class _ProfilePickerState extends State<ProfilePicker> {
       return SingleChildScrollView(
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(height: isTablet ? 48 : 24),
-              Text(
-                _children.isEmpty ? 'Thêm bé để bắt đầu' : 'Ai đang chơi nào?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: isTablet ? 40 : 28,
-                    fontWeight: FontWeight.bold),
+          // Center the whole content block horizontally; cap its width.
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: contentMax),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: isTablet ? 32 : 20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SizedBox(height: isTablet ? 56 : 28),
+                    Text(
+                      _children.isEmpty
+                          ? 'Thêm bé để bắt đầu'
+                          : 'Ai đang chơi nào?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: isTablet ? 40 : 28,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _children.isEmpty
+                          ? 'Tạo hồ sơ cho bé, hoặc chơi thử ở chế độ Khách'
+                          : 'Chạm vào tên của con',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: isTablet ? 22 : 16),
+                    ),
+                    SizedBox(height: isTablet ? 48 : 32),
+                    Wrap(
+                      spacing: 24,
+                      runSpacing: 24,
+                      alignment: WrapAlignment.center,
+                      children: tiles,
+                    ),
+                    SizedBox(height: isTablet ? 40 : 28),
+                    _GuestButton(onTap: widget.onGuest, isTablet: isTablet),
+                    SizedBox(height: isTablet ? 56 : 28),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                _children.isEmpty
-                    ? 'Tạo hồ sơ cho bé, hoặc chơi thử ở chế độ Khách'
-                    : 'Chạm vào tên của con',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Colors.white70, fontSize: isTablet ? 22 : 16),
-              ),
-              SizedBox(height: isTablet ? 48 : 32),
-              Wrap(
-                spacing: 24,
-                runSpacing: 24,
-                alignment: WrapAlignment.center,
-                children: tiles,
-              ),
-              const SizedBox(height: 24),
-              TextButton.icon(
-                onPressed: widget.onGuest,
-                icon: const Icon(Icons.bolt, color: Colors.white70),
-                label: const Text('Khách (chơi nhanh)',
-                    style: TextStyle(color: Colors.white70)),
-              ),
-              SizedBox(height: isTablet ? 48 : 24),
-            ],
+            ),
           ),
         ),
       );
     });
+  }
+}
+
+/// A prominent "Khách (chơi nhanh)" pill — a clear call-to-action, not a faint
+/// text link, so a parent can jump into a no-setup session at a glance.
+class _GuestButton extends StatelessWidget {
+  const _GuestButton({required this.onTap, required this.isTablet});
+  final VoidCallback onTap;
+  final bool isTablet;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      icon: const Icon(Icons.bolt),
+      label: const Text('Khách (chơi nhanh)'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white,
+        side: const BorderSide(color: Colors.white24, width: 1.5),
+        backgroundColor: Colors.white.withValues(alpha: 0.06),
+        padding: EdgeInsets.symmetric(
+            horizontal: isTablet ? 28 : 20, vertical: isTablet ? 16 : 12),
+        textStyle: TextStyle(
+            fontSize: isTablet ? 18 : 15, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28)),
+      ),
+    );
   }
 }
 
