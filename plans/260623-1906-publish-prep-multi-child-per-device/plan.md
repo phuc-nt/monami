@@ -46,7 +46,7 @@ Foundation design + decisions are locked in the approved brainstorm:
 | 2 | [App Device Identity and Profile Service](./phase-02-app-device-identity-and-profile-service.md) | ✅ completed | 1 |
 | 3 | [App Profile Management UI](./phase-03-app-profile-management-ui.md) | ✅ completed | 2 |
 | 4 | [Gendered Robot Face](./phase-04-gendered-robot-face.md) | ✅ completed | 3 |
-| 5 | [Quick Guest Mode](./phase-05-quick-guest-mode.md) | pending | 3 |
+| 5 | [Quick Guest Mode](./phase-05-quick-guest-mode.md) | ✅ completed | 3 |
 | 6 | [TestFlight Release and Pre-Publish Polish](./phase-06-testflight-release-and-pre-publish-polish.md) | pending | 1-5 |
 
 **Ordering (strictly serial 1→2→3→4→5→6).** Red-team correction: phases 3, 4, 5 are
