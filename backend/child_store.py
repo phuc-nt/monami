@@ -31,7 +31,11 @@ from pathlib import Path
 
 logger = logging.getLogger("child_store")
 
-_DEVICES_COLLECTION = "devices"
+# A dev/staging backend sets FIRESTORE_PREFIX (e.g. "dev_") so its data lands in a
+# SEPARATE top-level collection (dev_devices) and never touches the production
+# data that the TestFlight build uses. Prod leaves it unset → "devices".
+_FIRESTORE_PREFIX = os.environ.get("FIRESTORE_PREFIX", "")
+_DEVICES_COLLECTION = f"{_FIRESTORE_PREFIX}devices"
 _CHILDREN_SUBCOLLECTION = "children"
 _PROFILES_DIR = Path(__file__).parent / "profiles"
 

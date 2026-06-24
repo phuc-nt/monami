@@ -118,7 +118,11 @@ def _with_params(url: str, **params: str | None) -> str:
 async def run(args: argparse.Namespace) -> None:
     pcm = _read_wav_pcm(Path(args.wav))
     url = _with_params(
-        args.url, device=args.device, profile=args.profile, token=args.token
+        args.url,
+        device=args.device,
+        profile=args.profile,
+        token=args.token,
+        mode=args.mode,
     )
     print(f"Connecting to {url} …")
     async with websockets.connect(url, max_size=None) as ws:
@@ -157,6 +161,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument(
         "--token", help="shared-secret token; added as &token= (cloud auth)"
+    )
+    p.add_argument(
+        "--mode",
+        help="learning mode (english|stories|science); added as &mode= "
+        "(omit for free chat)",
     )
     return p.parse_args(argv)
 
