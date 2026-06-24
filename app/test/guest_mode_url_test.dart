@@ -30,11 +30,23 @@ void main() {
     expect(url, contains('profile=guest'));
   });
 
-  test('append order is device, profile, token', () {
-    final url =
-        buildConnectUrl(cloud, profileId: 'p', deviceId: 'd', token: 't');
-    // The query string order is stable (device first), matching what the backend
-    // + the old inline builder expect.
-    expect(url, endsWith('?device=d&profile=p&token=t'));
+  test('append order is device, profile, token, mode', () {
+    final url = buildConnectUrl(cloud,
+        profileId: 'p', deviceId: 'd', token: 't', mode: 'english');
+    // The query string order is stable, matching what the backend expects.
+    expect(url, endsWith('?device=d&profile=p&token=t&mode=english'));
+  });
+
+  test('free chat (empty mode) omits the mode param — backward compatible', () {
+    final url = buildConnectUrl(cloud, profileId: 'p', mode: '');
+    expect(url, isNot(contains('mode=')));
+    expect(url, contains('profile=p'));
+  });
+
+  test('a learning mode appends mode=<value>', () {
+    for (final m in ['english', 'stories', 'science']) {
+      final url = buildConnectUrl(cloud, profileId: 'p', mode: m);
+      expect(url, contains('mode=$m'));
+    }
   });
 }

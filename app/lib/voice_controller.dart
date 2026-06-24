@@ -21,6 +21,7 @@ import 'package:flutter/foundation.dart';
 
 import 'audio_capture.dart';
 import 'audio_playback.dart';
+import 'learning_mode.dart';
 import 'voice_socket.dart';
 
 // `connecting` covers the cold-start wait (scale-to-zero backend waking up) —
@@ -29,14 +30,17 @@ enum VoiceState { disconnected, connecting, idle, listening, speaking }
 
 /// Build the WS URL for a session. Empty values are dropped, so a guest session
 /// (empty `deviceId`) connects with `?profile=guest` and NO `device` — which is
-/// exactly what makes the backend persist nothing. Pure + side-effect-free so it
-/// can be unit-tested without constructing a VoiceController (which would need
-/// platform plugins). Order: device, profile, token.
+/// exactly what makes the backend persist nothing. An empty `mode` is likewise
+/// dropped → free chat = the backend's default (backward compatible). Pure +
+/// side-effect-free so it can be unit-tested without constructing a
+/// VoiceController (which would need platform plugins).
+/// Order: device, profile, token, mode.
 String buildConnectUrl(
   String base, {
   required String profileId,
   String token = '',
   String deviceId = '',
+  String mode = '',
 }) {
   String url = base;
   void add(String key, String value) {
@@ -48,6 +52,7 @@ String buildConnectUrl(
   add('device', deviceId);
   add('profile', profileId);
   add('token', token);
+  add('mode', mode);
   return url;
 }
 
@@ -80,8 +85,27 @@ class VoiceController extends ChangeNotifier {
   final String _token;
   final String _deviceId;
 
-  String _buildUrl() =>
-      buildConnectUrl(_base, profileId: _profileId, token: _token, deviceId: _deviceId);
+  // The active learning mode; chat = free chat (no `mode` param). Switching it
+  // reconnects the session so the backend rebuilds the prompt for the new mode.
+  LearningMode _mode = LearningMode.chat;
+  LearningMode get mode => _mode;
+
+  String _buildUrl() => buildConnectUrl(
+        _base,
+        profileId: _profileId,
+        token: _token,
+        deviceId: _deviceId,
+        mode: _mode.wsValue ?? '',
+      );
+
+  /// Switch the learning mode and reconnect with it. No-op if unchanged. The
+  /// reconnect reuses the normal cold-start UX (a brief `connecting` state).
+  Future<void> setMode(LearningMode m) async {
+    if (m == _mode || _disposed) return;
+    _mode = m;
+    notifyListeners(); // update the selector highlight immediately
+    await reconnect();
+  }
 
   // How long to wait for the backend (incl. cold start) before showing an error.
   static const _connectTimeout = Duration(seconds: 15);

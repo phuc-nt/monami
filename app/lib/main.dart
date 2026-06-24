@@ -11,6 +11,7 @@ import 'app_theme.dart';
 import 'child_model.dart';
 import 'child_service.dart';
 import 'device_identity.dart';
+import 'learning_mode.dart';
 import 'profile_picker.dart';
 import 'responsive.dart';
 import 'robot_face.dart';
@@ -239,13 +240,119 @@ class _VoiceHomeState extends State<VoiceHome> {
                           child: _TranscriptView(turns: _controller.turns),
                         ),
                       ],
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
+                      _ModeSelector(controller: _controller, tint: widget.tint),
+                      const SizedBox(height: 16),
                       _TalkButton(controller: _controller),
                     ],
                   ),
                 );
               },
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A compact row of mode chips on the voice screen: free chat (default) +
+/// the three learning modes. Tapping one switches the session's mode (which
+/// reconnects). Big, few, icon-led — sits above the talk button without
+/// crowding the robot-face hero. Listens to the controller so the active chip
+/// stays highlighted.
+class _ModeSelector extends StatefulWidget {
+  const _ModeSelector({required this.controller, required this.tint});
+  final VoiceController controller;
+  final Color tint;
+
+  @override
+  State<_ModeSelector> createState() => _ModeSelectorState();
+}
+
+class _ModeSelectorState extends State<_ModeSelector> {
+  // Debounce rapid taps (a 5-year-old mashing) — instance-scoped, so it dies
+  // with the widget (matches VoiceController._lastToggle's pattern).
+  DateTime? _lastTap;
+  static const _debounce = Duration(milliseconds: 700);
+
+  void _pick(LearningMode m) {
+    if (m == widget.controller.mode) return;
+    final now = DateTime.now();
+    if (_lastTap != null && now.difference(_lastTap!) < _debounce) return;
+    _lastTap = now;
+    widget.controller.setMode(m);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (context, _) {
+        return Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final m in LearningMode.values)
+              _ModeChip(
+                mode: m,
+                selected: widget.controller.mode == m,
+                tint: widget.tint,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _pick(m);
+                },
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ModeChip extends StatelessWidget {
+  const _ModeChip({
+    required this.mode,
+    required this.selected,
+    required this.tint,
+    required this.onTap,
+  });
+  final LearningMode mode;
+  final bool selected;
+  final Color tint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Colors.white : Colors.white70;
+    return Material(
+      color: selected
+          ? tint.withValues(alpha: 0.28)
+          : Colors.white.withValues(alpha: 0.06),
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? tint : Colors.white24,
+          width: selected ? 2 : 1,
+        ),
+      ),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(mode.icon, size: 18, color: fg),
+              const SizedBox(width: 6),
+              Text(mode.label,
+                  style: TextStyle(
+                      color: fg,
+                      fontSize: 14,
+                      fontWeight:
+                          selected ? FontWeight.w700 : FontWeight.w500)),
+            ],
           ),
         ),
       ),
