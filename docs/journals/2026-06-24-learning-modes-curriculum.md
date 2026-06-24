@@ -49,8 +49,29 @@ the rest of the words/questions) approved as age-appropriate and safe.
 - Code review: safe, all 6 criteria met, no blockers; the `_topic_done` tighten was
   applied here (not deferred) since it also fixes the phase-4 write contract.
 
+## Cloud E2E (a separate dev backend)
+
+To test in-development work without disturbing the TestFlight build, a **separate
+Cloud Run service** `monami-backend-dev` was deployed (same project) with
+`FIRESTORE_PREFIX=dev_` → its data lands in `dev_devices`, never the prod
+`devices` the TestFlight app uses (verified: creating a child on dev appeared in
+`dev_devices`, prod untouched). Prod (`monami-backend`) is left alone; promote to
+it only when a feature is ready. Added a `--mode` flag to `ws_test_client.py`.
+
+E2E (streaming a real kid WAV with `?mode=…` over WSS to the dev backend) **caught
+a real gap unit tests couldn't**: the mode was loaded correctly (logs confirmed
+`mode=english`), but the model just answered the child's question like free chat
+instead of leading the lesson. Fixed with a `_LEAD_PREAMBLE` (be proactive: start
+the activity; if the child drifts, answer briefly then steer back). After redeploy,
+all three modes lead their curriculum content — same neutral input
+("muốn nghe kể chuyện con mèo"): english → "học về con vật… 'cat', nói thử"; stories
+→ "câu chuyện về chú thỏ con"; science → "vì sao bầu trời màu xanh?"; while free
+chat (no mode) on the same input just chats. Backward compat holds end-to-end.
+
 ## State
 
-Phase 2 done. Next: phase 3 (app mode-selector UI — the buttons that send `?mode=`),
-phase 4 (summarizer writes the `DONE_MARKER` note + a real-device pass). Content is
-data: adding topics later is a JSON edit.
+Phase 2 done + cloud-E2E verified on a dedicated dev backend. Next: phase 3 (app
+mode-selector UI — the buttons that send `?mode=`), phase 4 (summarizer writes the
+`DONE_MARKER` note + a real-device pass). Content is data: adding topics later is a
+JSON edit. **Dev/prod backend split is now part of the workflow** — develop on
+`monami-backend-dev`, promote to `monami-backend` when ready.
