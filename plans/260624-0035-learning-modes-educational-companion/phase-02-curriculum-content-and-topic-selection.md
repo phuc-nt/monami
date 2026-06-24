@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Curriculum Content and Topic Selection"
-status: pending
+status: completed
 priority: P2
 effort: "1d"
 dependencies: [1]

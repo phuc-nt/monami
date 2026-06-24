@@ -53,10 +53,15 @@ whole feature against Cloud Run.
 ## Implementation Steps
 
 1. Thread mode+lesson context into `_update_memory` → `summarize(...)`.
-2. Update the summarizer prompt to append a short "đã học: <mode>: <topic>" note
-   when a lesson was active.
-3. Tighten `curriculum.load_topic` "topics done" detection to match that phrase
-   (simple substring/contains is fine — KISS).
+2. Update the summarizer prompt to append the topic-done note using the EXACT
+   format the matcher expects: `curriculum.DONE_MARKER + " " + f"{mode}:{topic_id}"`
+   → i.e. **"đã học: <mode>:<topic_id>"** (note: a space after `đã học:`, then no
+   space around the `:` between mode and id). Phase 2 already exports
+   `curriculum.DONE_MARKER` and anchors `_topic_done` on this exact string — so the
+   writer must use the same constant. (Phase-2 review flagged a space-mismatch
+   risk; using the shared constant eliminates it.)
+3. `curriculum.load_topic` "topics done" detection is ALREADY anchored on
+   `DONE_MARKER` (phase 2) — no change needed unless the format changes here.
 4. Tests: a registered child's learning session writes a topic note; the next
    `load_topic` skips it; a GUEST learning session writes NOTHING (re-assert the
    guest no-persist invariant with a mode set).
