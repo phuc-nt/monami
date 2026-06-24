@@ -2,13 +2,29 @@
   {
     "id": "why-sky-blue",
     "question_vi": "Vì sao bầu trời màu xanh?",
+    "predict_vi": "Bé đoán thử xem: vì sao ban ngày trời lại màu xanh mà không phải màu hồng hay tím?",
     "answer_vi": "Ánh nắng mặt trời có nhiều màu trộn lại. Khi ánh nắng đi qua bầu trời, màu xanh bị tán ra (tỏa đi khắp nơi) nhiều nhất, nên mình nhìn thấy trời màu xanh.",
     "follow_up_vi": "Con có biết lúc hoàng hôn trời đổi sang màu gì không?"
   },
   {
     "id": "why-birds-fly",
     "question_vi": "Vì sao con chim bay được?",
+    "predict_vi": "Theo bé, nhờ cái gì mà con chim bay lên trời được nhỉ? Thử đoán xem!",
     "answer_vi": "Chim có đôi cánh nhẹ và lông mềm. Khi chim vẫy cánh, không khí đẩy chim lên cao, giống như mình quạt tay thấy gió vậy.",
     "follow_up_vi": "Con thử đoán xem con vật nào bay được mà không phải là chim nhé?"
+  },
+  {
+    "id": "why-rain",
+    "question_vi": "Vì sao trời lại mưa?",
+    "predict_vi": "Bé đoán xem nước mưa từ đâu rơi xuống? Trên trời có gì mà ra nước được nhỉ?",
+    "answer_vi": "Mặt trời làm nước ở sông, biển bốc hơi bay lên trời, gom lại thành mây. Khi mây nặng quá, nước rơi xuống thành mưa.",
+    "follow_up_vi": "Sau cơn mưa, con có hay thấy cái gì bảy màu hiện trên trời không?"
+  },
+  {
+    "id": "why-stars-night",
+    "question_vi": "Vì sao ban đêm mình mới thấy ngôi sao?",
+    "predict_vi": "Ban ngày sao có biến đi đâu không, hay vẫn ở đó? Bé thử đoán xem!",
+    "answer_vi": "Các ngôi sao luôn ở trên trời cả ngày lẫn đêm. Ban ngày mặt trời sáng quá nên át mất ánh sao. Đến đêm trời tối, mình mới thấy sao lấp lánh.",
+    "follow_up_vi": "Con thử đếm xem buổi tối nhìn lên trời được mấy ngôi sao nhé?"
   }
 ]

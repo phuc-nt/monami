@@ -9,7 +9,8 @@
       { "en": "fish", "vi": "con cá" }
     ],
     "sentence_en": "I have a dog.",
-    "sentence_vi": "Mình có một con chó."
+    "sentence_vi": "Mình có một con chó.",
+    "elicit_vi": "Mình nói 'con mèo' tiếng Anh là gì nhỉ? Bé thử nói 'cat' xem nào!"
   },
   {
     "id": "food",
@@ -21,6 +22,33 @@
       { "en": "water", "vi": "nước" }
     ],
     "sentence_en": "I like apples.",
-    "sentence_vi": "Mình thích táo."
+    "sentence_vi": "Mình thích táo.",
+    "elicit_vi": "Bé chỉ cho mình: 'nước' tiếng Anh nói sao? Cùng nói 'water' nào!"
+  },
+  {
+    "id": "colors",
+    "title_vi": "Màu sắc",
+    "words": [
+      { "en": "red", "vi": "màu đỏ" },
+      { "en": "blue", "vi": "màu xanh" },
+      { "en": "yellow", "vi": "màu vàng" },
+      { "en": "green", "vi": "màu xanh lá" }
+    ],
+    "sentence_en": "The sky is blue.",
+    "sentence_vi": "Bầu trời màu xanh.",
+    "elicit_vi": "Áo của bé màu gì? Bé thử nói màu đó bằng tiếng Anh xem!"
+  },
+  {
+    "id": "body",
+    "title_vi": "Cơ thể",
+    "words": [
+      { "en": "hand", "vi": "bàn tay" },
+      { "en": "eye", "vi": "con mắt" },
+      { "en": "nose", "vi": "cái mũi" },
+      { "en": "ear", "vi": "cái tai" }
+    ],
+    "sentence_en": "I have two eyes.",
+    "sentence_vi": "Mình có hai con mắt.",
+    "elicit_vi": "Bé chỉ vào mũi và nói 'nose' nhé! Còn 'bàn tay' tiếng Anh là gì?"
   }
 ]

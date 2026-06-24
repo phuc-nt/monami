@@ -1,6 +1,6 @@
 """Curriculum loader: turn a learning mode into a compact lesson for the prompt.
 
-Each learning mode (`english`/`stories`/`science`) has a small JSON file under
+Each learning mode (`english`/`science`) has a small JSON file under
 `backend/curriculum/` listing topics. For a session we pick ONE topic — the first
 the child hasn't done yet (read tolerantly from the per-child memory text; a later
 phase writes the "done" notes, so before that we simply fall back to the first
@@ -111,8 +111,6 @@ def render_lesson(mode: str | None, topic: dict | None) -> str:
         return ""
     if resolved == learning_modes.ENGLISH:
         out = _render_english(topic)
-    elif resolved == learning_modes.STORIES:
-        out = _render_story(topic)
     elif resolved == learning_modes.SCIENCE:
         out = _render_science(topic)
     else:  # pragma: no cover - parse_mode guarantees one of the above
@@ -120,6 +118,15 @@ def render_lesson(mode: str | None, topic: dict | None) -> str:
     return out[:_MAX_LESSON_CHARS].rstrip()
 
 
+# Curriculum schema (v2) — fields a topic may carry:
+#   english topic: id, title_vi, words[{en,vi}], sentence_en, sentence_vi,
+#                  elicit_vi (optional) — a recall prompt the model uses to make
+#                  the child SAY the words back (active recall).
+#   science topic: id, question_vi, answer_vi, follow_up_vi,
+#                  predict_vi (optional) — the "guess why first" prompt, rendered
+#                  BEFORE the suggested answer so the model elicits a guess first.
+# All the v2 fields are optional + read via .get(); a topic without them still
+# renders (backward compatible). Adding a topic is data, not code.
 def _render_english(t: dict) -> str:
     words = "; ".join(
         f"{w.get('en','')} = {w.get('vi','')}" for w in t.get("words", [])
@@ -132,23 +139,17 @@ def _render_english(t: dict) -> str:
             f"Câu mẫu / Sentence: {t.get('sentence_en','')} "
             f"({t.get('sentence_vi','')})"
         )
-    return "\n".join(lines)
-
-
-def _render_story(t: dict) -> str:
-    chars = ", ".join(t.get("characters", []))
-    lines = [f"Truyện / Story: {t.get('title_vi','')}"]
-    if t.get("summary"):
-        lines.append(f"Tóm tắt / Summary: {t['summary']}")
-    if chars:
-        lines.append(f"Nhân vật / Characters: {chars}")
-    if t.get("moral_vi"):
-        lines.append(f"Ý nghĩa / Moral: {t['moral_vi']}")
+    if t.get("elicit_vi"):
+        lines.append(f"Gợi bé nói lại / Recall prompt: {t['elicit_vi']}")
     return "\n".join(lines)
 
 
 def _render_science(t: dict) -> str:
     lines = [f"Câu hỏi / Question: {t.get('question_vi','')}"]
+    # Predict comes BEFORE the answer: the model should ask the child to guess
+    # "why" first, then explain.
+    if t.get("predict_vi"):
+        lines.append(f"Hỏi bé đoán trước / Ask to predict: {t['predict_vi']}")
     if t.get("answer_vi"):
         lines.append(f"Trả lời gợi ý / Suggested answer: {t['answer_vi']}")
     if t.get("follow_up_vi"):

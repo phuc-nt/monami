@@ -96,10 +96,13 @@ def build_system_prompt(
             "Hãy dùng những điều này một cách tự nhiên, ấm áp khi hợp lý. "
             "Use these naturally and warmly when it fits.",
         ]
-    # Learning mode (optional): append the pedagogy framing + today's lesson.
+    # Learning mode (optional): append the pedagogy framing, an age-tuned
+    # difficulty line, + today's lesson. All of this lives INSIDE this branch so
+    # free chat (no/unknown mode → empty script) is byte-identical to before.
     script = learning_modes.leading_script(mode)
     if script:
         parts += ["", script]
+        parts += ["", learning_modes.age_band_line(profile.age)]
         if lesson.strip():
             parts += [
                 "",
