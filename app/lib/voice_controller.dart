@@ -233,12 +233,43 @@ class VoiceController extends ChangeNotifier {
     }
     _startNewTurnOnNextInput = true; // first input opens a fresh turn
     try {
-      await _capture.start((chunk) => _socket?.sendAudio(chunk));
+      await _capture.start(_onMicChunk);
       _micOpen = true;
       _setState(VoiceState.listening);
     } catch (e) {
       _fail('capture failed: $e');
     }
+  }
+
+  // Half-duplex gate against acoustic echo: while the bot is speaking (and for a
+  // brief guard afterward, so room/speaker tail echo dies out), DON'T forward mic
+  // audio to the server. Otherwise an open speaker feeds the bot's own voice back
+  // into the mic → server VAD treats it as a new utterance → the bot replies to
+  // itself, looping endlessly. Headphones don't have this echo path, which is why
+  // the bug only appears on the built-in speaker. The mic stream itself keeps
+  // running (cheap) — we just suppress sending during playback.
+  static const echoGuard = Duration(milliseconds: 400);
+  DateTime? _speakingEndedAt;
+
+  void _onMicChunk(Uint8List chunk) {
+    if (!shouldSendMicAudio(_state, _speakingEndedAt, DateTime.now())) return;
+    _speakingEndedAt = null; // past the guard (or never speaking) → resume normally
+    _socket?.sendAudio(chunk);
+  }
+
+  /// Pure decision for the half-duplex echo gate (testable without plugins):
+  /// suppress mic audio while the bot is speaking, and for [echoGuard] after it
+  /// stopped, so an open speaker's tail echo can't re-trigger the server VAD.
+  static bool shouldSendMicAudio(
+    VoiceState state,
+    DateTime? speakingEndedAt,
+    DateTime now,
+  ) {
+    if (state == VoiceState.speaking) return false; // bot talking → don't echo back
+    if (speakingEndedAt != null && now.difference(speakingEndedAt) < echoGuard) {
+      return false; // within the tail-echo guard window
+    }
+    return true;
   }
 
   Future<void> _stopMic() async {
@@ -299,6 +330,7 @@ class VoiceController extends ChangeNotifier {
   void _onPlaybackDrained() {
     // A reply finished playing — celebrate, then settle to the live state.
     if (_state == VoiceState.speaking) {
+      _speakingEndedAt = DateTime.now(); // start the echo-guard window
       _triggerHappyPulse();
       _setState(_micOpen ? VoiceState.listening : VoiceState.idle);
     }
