@@ -1,0 +1,14 @@
+[
+  {
+    "id": "why-sky-blue",
+    "question_vi": "Vì sao bầu trời màu xanh?",
+    "answer_vi": "Ánh nắng mặt trời có nhiều màu trộn lại. Khi ánh nắng đi qua bầu trời, màu xanh bị tán ra (tỏa đi khắp nơi) nhiều nhất, nên mình nhìn thấy trời màu xanh.",
+    "follow_up_vi": "Con có biết lúc hoàng hôn trời đổi sang màu gì không?"
+  },
+  {
+    "id": "why-birds-fly",
+    "question_vi": "Vì sao con chim bay được?",
+    "answer_vi": "Chim có đôi cánh nhẹ và lông mềm. Khi chim vẫy cánh, không khí đẩy chim lên cao, giống như mình quạt tay thấy gió vậy.",
+    "follow_up_vi": "Con thử đoán xem con vật nào bay được mà không phải là chim nhé?"
+  }
+]

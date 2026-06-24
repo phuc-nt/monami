@@ -1,0 +1,16 @@
+[
+  {
+    "id": "rabbit-and-carrot",
+    "title_vi": "Chú thỏ và củ cà rốt",
+    "summary": "Một chú thỏ nhỏ tìm thấy củ cà rốt to. Thay vì ăn hết một mình, thỏ chia cho các bạn trong rừng. Mọi người cùng vui và chơi với nhau.",
+    "characters": ["thỏ con", "bạn sóc", "bạn nai"],
+    "moral_vi": "Chia sẻ với bạn thì ai cũng vui hơn."
+  },
+  {
+    "id": "little-star",
+    "title_vi": "Ngôi sao nhỏ đi ngủ",
+    "summary": "Khi trời tối, một ngôi sao nhỏ còn thức. Mặt trăng nhẹ nhàng kể chuyện cho sao nghe, và sao từ từ nhắm mắt ngủ ngon. Sáng hôm sau sao lại sáng lấp lánh.",
+    "characters": ["ngôi sao nhỏ", "mặt trăng"],
+    "moral_vi": "Đi ngủ đúng giờ để ngày mai khỏe và vui."
+  }
+]

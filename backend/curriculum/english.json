@@ -1,0 +1,26 @@
+[
+  {
+    "id": "animals",
+    "title_vi": "Con vật",
+    "words": [
+      { "en": "dog", "vi": "con chó" },
+      { "en": "cat", "vi": "con mèo" },
+      { "en": "bird", "vi": "con chim" },
+      { "en": "fish", "vi": "con cá" }
+    ],
+    "sentence_en": "I have a dog.",
+    "sentence_vi": "Mình có một con chó."
+  },
+  {
+    "id": "food",
+    "title_vi": "Đồ ăn",
+    "words": [
+      { "en": "rice", "vi": "cơm" },
+      { "en": "apple", "vi": "quả táo" },
+      { "en": "milk", "vi": "sữa" },
+      { "en": "water", "vi": "nước" }
+    ],
+    "sentence_en": "I like apples.",
+    "sentence_vi": "Mình thích táo."
+  }
+]

@@ -34,6 +34,7 @@ import logging
 from google import genai
 from google.genai import types
 
+import curriculum
 import gemini_session_config as cfg
 from child_profile import GUEST_PROFILE, profile_from_record
 from child_store import get_child, load_memory, save_memory
@@ -168,8 +169,15 @@ async def run_session(
 
     client = _make_client()
     model = cfg.model_id()
-    # lesson is empty here; the curriculum loader fills it in a later phase.
-    config = cfg.build_live_connect_config(profile, memory_text, mode=mode)
+    # For a learning mode, pick today's topic + render it into the lesson block.
+    # Free chat (mode=None) → load_topic returns None → render_lesson returns ""
+    # → the prompt is unchanged. A missing/broken curriculum file also yields ""
+    # (the mode then runs on its leading script alone).
+    topic = curriculum.load_topic(mode, memory_text)
+    lesson = curriculum.render_lesson(mode, topic)
+    config = cfg.build_live_connect_config(
+        profile, memory_text, mode=mode, lesson=lesson
+    )
 
     logger.info(
         "opening Gemini Live session: model=%s persist=%s mode=%s (memory=%s)",
