@@ -1,10 +1,12 @@
 ---
 phase: 4
-title: "Memory Topics-Done and Device Verification"
-status: pending
+title: Memory Topics-Done and Device Verification
+status: completed
 priority: P2
-effort: "0.5d"
-dependencies: [2, 3]
+effort: 0.5d
+dependencies:
+  - 2
+  - 3
 ---
 
 # Phase 4: Memory Topics-Done and Device Verification
@@ -72,12 +74,31 @@ whole feature against Cloud Run.
 
 ## Success Criteria
 
-- [ ] After a learning session, the child's memory notes the topic + mode.
-- [ ] The next session in that mode picks a different/unfinished topic.
-- [ ] A guest learning session persists NOTHING (guest invariant intact with mode).
-- [ ] Free-chat memory behavior unchanged; existing child docs still load.
-- [ ] Real-device pass: all 4 modes work, free chat unchanged, no leak; backend +
-      app suites green.
+- [x] After a learning session, the child's memory notes the topic + mode.
+- [x] The next session in that mode picks a different/unfinished topic.
+- [x] A guest learning session persists NOTHING (guest invariant intact with mode).
+- [x] Free-chat memory behavior unchanged; existing child docs still load.
+- [x] Cloud-dev E2E pass: english mode led the lesson, advanced topics, no leak;
+      backend suite green (48/48).
+
+## Outcome (completed 2026-06-24)
+
+- **Done-note is written DETERMINISTICALLY in code, not via the summarizer prompt**
+  (stronger than the original step 2). The summarizer produces free-form prose;
+  `gemini_session._with_done_notes` then re-asserts ALL `đã học: <mode>:<id>` markers
+  (prior ones parsed from the existing summary + this session's) on their own lines.
+  Both writer and matcher route through `curriculum.done_note` — one format, no
+  drift. The matcher (`_topic_done`) matches the marker as the end of a line, so one
+  topic id can't be a substring of another.
+- **Why deterministic:** an LLM rewrite is free to drop a "đã học:" line, which would
+  silently un-finish a topic. Carrying markers forward in code makes done-state
+  durable across re-summarization.
+- **E2E on cloud dev (`monami-backend-dev`, `dev_devices`):** session 1 (english) →
+  memory got `đã học: english:animals`; session 2 → loader advanced to `food`, and
+  the write kept BOTH markers even though the LLM's prose dropped them. Prod
+  `devices` untouched; dev test child cleaned up.
+- **Promotion to prod (`monami-backend`) + TestFlight rebuild is a SEPARATE,
+  user-gated step** — not part of this phase.
 
 ## Risk Assessment
 

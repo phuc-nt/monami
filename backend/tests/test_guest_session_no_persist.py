@@ -86,7 +86,7 @@ def _patched_client():
     return client
 
 
-def _run(monkeypatch, *, device, profile, is_guest, child_record=None):
+def _run(monkeypatch, *, device, profile, is_guest, child_record=None, mode=None):
     import gemini_session
 
     monkeypatch.setattr(gemini_session, "_make_client", _patched_client)
@@ -107,7 +107,8 @@ def _run(monkeypatch, *, device, profile, is_guest, child_record=None):
 
     asyncio.run(
         gemini_session.run_session(
-            _FakeWs(), device_id=device, child_id=profile, is_guest=is_guest
+            _FakeWs(), device_id=device, child_id=profile, is_guest=is_guest,
+            mode=mode,
         )
     )
     return save_spy
@@ -115,6 +116,15 @@ def _run(monkeypatch, *, device, profile, is_guest, child_record=None):
 
 def test_guest_session_never_persists(monkeypatch):
     save_spy = _run(monkeypatch, device=None, profile="guest", is_guest=True)
+    save_spy.assert_not_called()
+
+
+def test_guest_LEARNING_session_never_persists(monkeypatch):
+    # The phase-4 invariant: a guest in a learning mode must STILL write nothing —
+    # adding mode/topic context must not cause a guest persist.
+    save_spy = _run(
+        monkeypatch, device=None, profile="guest", is_guest=True, mode="english"
+    )
     save_spy.assert_not_called()
 
 
@@ -150,3 +160,22 @@ def test_registered_child_DOES_persist(monkeypatch):
     args, kwargs = save_spy.call_args
     assert args[0] == "devX" and args[1] == "c1"
     assert args[2] == "a new summary"
+
+
+def test_registered_child_learning_session_records_done_note(monkeypatch):
+    # A registered child in a learning mode saves a memory that includes the
+    # "đã học: <mode>:<id>" note (appended deterministically).
+    import curriculum
+
+    record = {
+        "id": "c1", "name": "Vy", "gender": "girl", "age": 5, "interests": [],
+        "memory": {"summary": "", "updated_at": None},
+    }
+    save_spy = _run(
+        monkeypatch, device="devX", profile="c1", is_guest=False,
+        child_record=record, mode="english",
+    )
+    save_spy.assert_called_once()
+    saved = save_spy.call_args.args[2]
+    # The first english topic is "animals" (empty memory → not done).
+    assert curriculum.done_note("english", "animals") in saved

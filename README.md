@@ -9,7 +9,8 @@ Monami lets kids tap a button and have natural conversations in Vietnamese and E
 - **Bilingual voice conversations** — Vietnamese and English, low-latency (~850ms first-audio response)
 - **Age-appropriate safety** — strict content policies, kid-friendly persona
 - **Multi-child profiles per device** — parents create named profiles (with gender and interests); each child has persistent memory
-- **Per-child memory** — after each session, the backend summarizes the chat so the companion remembers the child next time
+- **Per-child memory** — after each session, the backend summarizes the chat so the companion remembers the child next time; tracks completed learning topics so structured activities resume
+- **Learning modes** — optional structured activities (English vocabulary, storytelling, science concepts) guided by JSON curriculum; backward compatible with free chat (default)
 - **Gendered robot face** — animated LED face that reacts to voice state, visually distinct for boys and girls
 - **Guest mode** — quick anonymous session with no storage
 - **Privacy-first** — no accounts, no ads, no analytics; audio is streamed live and never stored; only short text memories are kept

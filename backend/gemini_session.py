@@ -218,7 +218,17 @@ async def run_session(
         # never for a guest/unknown session (which would otherwise leak into some
         # other child's memory).
         if persist:
-            await _update_memory(client, device_id, child_id, memory_text, transcript)
+            # For a learning session, record which topic was done so the next
+            # session in that mode advances. `topic`/`mode` are set above (None
+            # for free chat → no done-note).
+            done = (
+                curriculum.done_note(mode, str(topic["id"]))
+                if (mode and topic)
+                else ""
+            )
+            await _update_memory(
+                client, device_id, child_id, memory_text, transcript, done
+            )
 
 
 # A session shorter than this (few transcript lines) isn't worth summarizing —
@@ -233,8 +243,13 @@ async def _update_memory(
     child_id: str,
     prior_summary: str,
     transcript: list[tuple[str, str]],
+    done_note: str = "",
 ) -> None:
     """Summarize the session into the child's memory and save it. Best-effort.
+
+    `done_note` (a learning session's "đã học: <mode>:<id>" marker, "" for free
+    chat) is appended DETERMINISTICALLY — code-controlled, not model-controlled —
+    so the format the loader matches on can never drift from what the AI writes.
 
     Only ever called for a resolved (device_id, child_id) — guests are gated out
     by the caller, so this never falls back to a default child.
@@ -252,9 +267,46 @@ async def _update_memory(
     except asyncio.TimeoutError:
         logger.warning("memory summary timed out; keeping prior")
         return
-    if new_summary and new_summary != prior_summary:
-        save_memory(device_id, child_id, new_summary, updated_at=_now_iso())
+    final = _with_done_notes(new_summary, prior_summary, done_note)
+    if final and final != prior_summary:
+        save_memory(device_id, child_id, final, updated_at=_now_iso())
         logger.info("memory updated")
+
+
+def _with_done_notes(summary: str, prior_summary: str, done_note: str) -> str:
+    """Return the new summary with ALL learning done-notes re-asserted.
+
+    Done-state is recorded as `curriculum.done_note` lines ("đã học: <mode>:<id>").
+    The summarizer is free-form prose and may drop those lines when it rewrites the
+    note — so we carry the markers forward DETERMINISTICALLY (code-controlled, not
+    model-controlled): every marker already in `prior_summary`, plus this session's
+    `done_note`, is preserved on its own line. Idempotent, order-stable, and a no-op
+    for free chat (no markers anywhere). This is what makes a finished topic stay
+    finished across many re-summarizations.
+    """
+    prior_markers = _done_markers(prior_summary)
+    markers = list(prior_markers)
+    if done_note and done_note not in markers:
+        markers.append(done_note)
+    # Strip any markers the model happened to copy, then append the canonical set
+    # so each appears exactly once, on its own line, after the prose.
+    body = "\n".join(
+        line for line in summary.splitlines() if line.strip() not in markers
+    ).rstrip()
+    if not markers:
+        return body
+    note_block = "\n".join(markers)
+    return f"{body}\n{note_block}" if body else note_block
+
+
+def _done_markers(text: str) -> list[str]:
+    """The `đã học:` marker lines in a summary, in order (de-duplicated)."""
+    seen: list[str] = []
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if s.startswith(curriculum.DONE_MARKER) and s not in seen:
+            seen.append(s)
+    return seen
 
 
 def _now_iso() -> str:

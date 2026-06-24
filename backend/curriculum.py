@@ -51,24 +51,34 @@ def _load_file(mode: str) -> list[dict]:
     return topics
 
 
-# Marker the memory summary uses to record a finished topic. Phase 4's summarizer
-# MUST write exactly this prefix; the matcher below anchors on it so a topic id
-# that merely appears as a word in the free-form summary (e.g. "animals") can't
-# cause a false "done".
+# Marker the memory summary uses to record a finished topic. The summarizer
+# writes exactly `done_note(...)`; the matcher anchors on the same string so a
+# topic id that merely appears as a word in the free-form summary (e.g.
+# "animals") can't cause a false "done". One producer, one consumer, one format.
 DONE_MARKER = "đã học:"
 
 
-def _topic_done(memory_text: str, mode: str, topic_id: str) -> bool:
-    """Has the child already done this topic? (anchored on DONE_MARKER).
+def done_note(mode: str, topic_id: str) -> str:
+    """The exact note recorded in memory when a topic is finished, e.g.
+    "đã học: english:animals". The summarizer appends this; `_topic_done` looks
+    for it — both go through here so they can never drift."""
+    return f"{DONE_MARKER} {mode}:{topic_id}"
 
-    Reads tolerantly from the free-form memory summary. Before phase 4 writes any
-    done-note this returns False (→ first topic). Anchoring on the structured
-    "đã học: <mode>:<id>" marker avoids false positives from ordinary words in the
-    summary.
+
+def _topic_done(memory_text: str, mode: str, topic_id: str) -> bool:
+    """Has the child already done this topic? (anchored on `done_note`).
+
+    Reads tolerantly from the free-form memory summary. Before any done-note is
+    written this returns False (→ first topic). The marker must be the END of a
+    line (the writer always puts it on its own line; tolerating leading prose
+    covers the case where the model folds it into a sentence). Anchoring on the
+    structured marker AND requiring end-of-line means one topic id can't be a
+    substring of another — "food" won't match a line ending in "...:foods".
     """
     if not memory_text:
         return False
-    return f"{DONE_MARKER} {mode}:{topic_id}" in memory_text
+    note = done_note(mode, topic_id)
+    return any(line.rstrip().endswith(note) for line in memory_text.splitlines())
 
 
 def load_topic(mode: str | None, memory_text: str = "") -> dict | None:

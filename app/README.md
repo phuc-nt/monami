@@ -67,8 +67,9 @@ No Swift platform channel was needed.
 | `lib/audio_capture.dart` | mic → 16 kHz mono PCM16 stream |
 | `lib/audio_playback.dart` | feed 24 kHz PCM → speaker (queue + drain signal) |
 | `lib/voice_socket.dart` | WebSocket connect, send audio, decode frames |
-| `lib/voice_controller.dart` | state machine + conversation history (tap-to-toggle) |
-| `lib/main.dart` | UI: status banner, chat transcript, talk button |
+| `lib/voice_controller.dart` | state machine + conversation history (tap-to-toggle); holds active learning mode |
+| `lib/learning_mode.dart` | LearningMode enum (chat, english, stories, science); mirrors backend VALID_MODES |
+| `lib/main.dart` | UI: status banner, chat transcript, talk button, mode selector chips |
 
 ## macOS permissions
 

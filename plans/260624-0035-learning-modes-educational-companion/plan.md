@@ -1,10 +1,17 @@
 ---
-title: "Learning Modes — Educational Companion"
-description: "Add structured, voice-first learning modes to Monami (English + Storytelling + Science) on top of the shipped multi-child app. A mode selector on the voice screen passes an OPTIONAL `mode` WS param; the backend loads a small JSON curriculum into the Gemini Live system prompt and notes 'topics done' in the existing per-child text memory. Default (no mode) = today's free chat, unchanged."
-status: pending
+title: Learning Modes — Educational Companion
+description: >-
+  Add structured, voice-first learning modes to Monami (English + Storytelling +
+  Science) on top of the shipped multi-child app. A mode selector on the voice
+  screen passes an OPTIONAL `mode` WS param; the backend loads a small JSON
+  curriculum into the Gemini Live system prompt and notes 'topics done' in the
+  existing per-child text memory. Default (no mode) = today's free chat,
+  unchanged.
+status: completed
 priority: P2
-created: 2026-06-24
-blockedBy: [260623-1906-publish-prep-multi-child-per-device]
+created: 2026-06-24T00:00:00.000Z
+blockedBy:
+  - 260623-1906-publish-prep-multi-child-per-device
 ---
 
 # Learning Modes — Educational Companion
@@ -44,7 +51,7 @@ Design + decisions locked in the approved brainstorm:
 | 1 | [Backend Mode Plumbing and Prompt Builder](./phase-01-backend-mode-plumbing-and-prompt-builder.md) | ✅ completed | — |
 | 2 | [Curriculum Content and Topic Selection](./phase-02-curriculum-content-and-topic-selection.md) | ✅ completed | 1 |
 | 3 | [App Mode Selector UI](./phase-03-app-mode-selector-ui.md) | ✅ completed | 1 |
-| 4 | [Memory Topics-Done and Device Verification](./phase-04-memory-topics-done-and-device-verification.md) | pending | 2, 3 |
+| 4 | [Memory Topics-Done and Device Verification](./phase-04-memory-topics-done-and-device-verification.md) | ✅ completed | 2, 3 |
 
 **Ordering:** 1 (the `mode` param + a mode-aware prompt seam with placeholder
 content) lands the plumbing without UI. 2 (the real JSON curriculum + how a topic
