@@ -44,7 +44,7 @@ void main() {
   });
 
   test('a learning mode appends mode=<value>', () {
-    for (final m in ['english', 'stories', 'science']) {
+    for (final m in ['english', 'science']) {
       final url = buildConnectUrl(cloud, profileId: 'p', mode: m);
       expect(url, contains('mode=$m'));
     }

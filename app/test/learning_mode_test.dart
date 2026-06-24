@@ -1,6 +1,6 @@
 // The app-side LearningMode enum must mirror the backend's mode strings exactly
-// (backend learning_modes.VALID_MODES = english|stories|science). A drift here
-// would silently fall back to free chat on the server.
+// (backend learning_modes.VALID_MODES = english|science). A drift here would
+// silently fall back to free chat on the server.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monami_app/learning_mode.dart';
@@ -12,8 +12,11 @@ void main() {
 
   test('learning modes map to the exact backend strings', () {
     expect(LearningMode.english.wsValue, 'english');
-    expect(LearningMode.stories.wsValue, 'stories');
     expect(LearningMode.science.wsValue, 'science');
+  });
+
+  test('science label is "Khoa học" (renamed from "Vì sao?")', () {
+    expect(LearningMode.science.label, 'Khoa học');
   });
 
   test('every mode has a VN label + icon', () {
@@ -23,7 +26,7 @@ void main() {
     }
   });
 
-  test('there are exactly 4 modes (chat + 3 learning)', () {
-    expect(LearningMode.values.length, 4);
+  test('there are exactly 3 modes (chat + 2 learning)', () {
+    expect(LearningMode.values.length, 3);
   });
 }
