@@ -37,16 +37,57 @@ def test_each_file_parses_and_matches_schema():
     for t in eng:
         assert all({"en", "vi"} <= w.keys() for w in t["words"])
 
-    sto = json.loads((_CUR_DIR / "stories.json").read_text(encoding="utf-8"))
-    assert sto and all(
-        {"id", "title_vi", "summary", "characters", "moral_vi"} <= t.keys()
-        for t in sto
-    )
-
     sci = json.loads((_CUR_DIR / "science.json").read_text(encoding="utf-8"))
     assert sci and all(
         {"id", "question_vi", "answer_vi", "follow_up_vi"} <= t.keys() for t in sci
     )
+
+
+def test_each_mode_has_four_topics_with_unique_ids():
+    """v2: 4 topics per mode, ids unique within a mode (done-notes key on the id,
+    so a duplicate would corrupt the topic-advance round-trip)."""
+    for mode in ("english", "science"):
+        topics = json.loads((_CUR_DIR / f"{mode}.json").read_text(encoding="utf-8"))
+        assert len(topics) == 4, f"{mode}: expected 4 topics, got {len(topics)}"
+        ids = [t["id"] for t in topics]
+        assert len(set(ids)) == len(ids), f"{mode}: duplicate topic id in {ids}"
+    # The original ids must survive (renaming would orphan a child's done-note).
+    eng_ids = {t["id"] for t in json.loads(
+        (_CUR_DIR / "english.json").read_text(encoding="utf-8"))}
+    sci_ids = {t["id"] for t in json.loads(
+        (_CUR_DIR / "science.json").read_text(encoding="utf-8"))}
+    assert {"animals", "food"} <= eng_ids
+    assert {"why-sky-blue", "why-birds-fly"} <= sci_ids
+
+
+def test_every_rendered_topic_within_cap():
+    for mode in ("english", "science"):
+        for t in curriculum._load_file(mode):
+            lesson = curriculum.render_lesson(mode, t)
+            assert len(lesson) <= curriculum._MAX_LESSON_CHARS, f"{mode}:{t['id']}"
+
+
+def test_render_emits_v2_fields_when_present_and_omits_when_absent():
+    # english elicit_vi present → "Recall prompt" line; absent → omitted.
+    with_elicit = curriculum._render_english(
+        {"title_vi": "Test", "words": [], "elicit_vi": "ELICIT-MARKER"}
+    )
+    assert "ELICIT-MARKER" in with_elicit and "Recall prompt" in with_elicit
+    without = curriculum._render_english({"title_vi": "Test", "words": []})
+    assert "Recall prompt" not in without  # backward compatible
+
+    # science predict_vi present → "Ask to predict" line, rendered BEFORE answer.
+    sci = curriculum._render_science(
+        {"question_vi": "Q?", "predict_vi": "PREDICT-MARKER",
+         "answer_vi": "ANSWER-TEXT"}
+    )
+    assert "PREDICT-MARKER" in sci and "Ask to predict" in sci
+    assert sci.index("PREDICT-MARKER") < sci.index("ANSWER-TEXT"), \
+        "predict must render before the answer (elicit the guess first)"
+    sci_no_predict = curriculum._render_science(
+        {"question_vi": "Q?", "answer_vi": "A"}
+    )
+    assert "Ask to predict" not in sci_no_predict  # backward compatible
 
 
 def test_load_topic_returns_a_topic_for_each_mode():
@@ -113,10 +154,10 @@ def test_missing_file_yields_none_no_crash(tmp_path, monkeypatch):
 
 
 def test_broken_json_yields_none_no_crash(tmp_path, monkeypatch):
-    (tmp_path / "stories.json").write_text("{ not json", encoding="utf-8")
+    (tmp_path / "english.json").write_text("{ not json", encoding="utf-8")
     monkeypatch.setattr(curriculum, "_DIR", tmp_path)
     curriculum._cache.clear()
-    assert curriculum.load_topic("stories", "") is None
+    assert curriculum.load_topic("english", "") is None
 
 
 def test_render_lesson_is_compact_and_bilingual():
