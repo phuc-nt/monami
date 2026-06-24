@@ -43,7 +43,7 @@ Design + decisions locked in the approved brainstorm:
 |-------|------|--------|-----------|
 | 1 | [Backend Mode Plumbing and Prompt Builder](./phase-01-backend-mode-plumbing-and-prompt-builder.md) | ✅ completed | — |
 | 2 | [Curriculum Content and Topic Selection](./phase-02-curriculum-content-and-topic-selection.md) | ✅ completed | 1 |
-| 3 | [App Mode Selector UI](./phase-03-app-mode-selector-ui.md) | pending | 1 |
+| 3 | [App Mode Selector UI](./phase-03-app-mode-selector-ui.md) | ✅ completed | 1 |
 | 4 | [Memory Topics-Done and Device Verification](./phase-04-memory-topics-done-and-device-verification.md) | pending | 2, 3 |
 
 **Ordering:** 1 (the `mode` param + a mode-aware prompt seam with placeholder

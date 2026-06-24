@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "App Mode Selector UI"
-status: pending
+status: completed
 priority: P2
 effort: "1d"
 dependencies: [1]
