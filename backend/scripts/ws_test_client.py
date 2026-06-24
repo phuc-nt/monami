@@ -164,7 +164,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument(
         "--mode",
-        help="learning mode (english|stories|science); added as &mode= "
+        help="learning mode (english|science); added as &mode= "
         "(omit for free chat)",
     )
     return p.parse_args(argv)

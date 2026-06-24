@@ -91,7 +91,7 @@ async def ws_voice(websocket: WebSocket) -> None:
     # never load or save memory. (An old build sending only ?profile=vy with no
     # device also lands here as guest: no crash, no write — the cutover shim.)
     is_guest = (not device_id) or child_id == "guest"
-    # Optional learning mode (english|stories|science); absent/unknown = free chat.
+    # Optional learning mode (english|science); absent/unknown = free chat.
     mode = websocket.query_params.get("mode")
     # Deliberately do NOT log device/child ids (they're bearer capabilities).
     logger.info(

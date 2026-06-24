@@ -100,7 +100,7 @@ Firestore enable, `gcloud run deploy`) is a separate phase; build via Cloud Buil
   - connect URL params:
     - `?device=<uuid>` — anonymous per-install device ID (from Keychain); absent or `?profile=guest` → guest session (no storage)
     - `?profile=<id>` — child ID under the device
-    - `?mode=english|stories|science` — optional learning mode; absent/unknown → free chat (byte-identical to pre-learning-modes behavior)
+    - `?mode=english|science` — optional learning mode; absent/unknown → free chat (byte-identical to pre-learning-modes behavior)
   - `{"type":"end_utterance"}` = push-to-talk released → backend flushes the turn
 - **server → client**
   - binary frame = 24 kHz mono PCM response audio
@@ -117,7 +117,7 @@ Firestore enable, `gcloud run deploy`) is a separate phase; build via Cloud Buil
 | `gemini_session_config.py` | verified Gemini Live config + system prompt builder (includes optional mode + lesson) |
 | `learning_modes.py` | VALID_MODES, parse_mode, mode-specific leading scripts |
 | `curriculum.py` | loads + renders JSON curriculum topics; tracks per-child progress via memory markers |
-| `curriculum/{english,stories,science}.json` | bilingual topic data (age-5 safe content) |
+| `curriculum/{english,science}.json` | bilingual topic data (kid-safe content, ages 4-10) |
 | `child_profile.py` | profile registry (Vy, Phong) → system-prompt text |
 | `profile_store.py` | per-child memory load/save (local JSON in `profiles/`) |
 | `scripts/ws_test_client.py` | local WS test client (proves the loop; `--profile`, `--mode`) |
