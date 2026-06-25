@@ -71,23 +71,54 @@ An toàn / Safety:
 """
 
 
+def _render_facts(facts: dict | None) -> str:
+    """A short bilingual durable-facts block, or "" when there's nothing to render.
+
+    Returns "" unless `any(facts.values())` is truthy — a default empty-keys dict
+    `{"pets":[],"likes":[],"dislikes":[]}` is falsy here, so a child with no facts
+    yet produces a BYTE-IDENTICAL prompt to before this feature existed.
+    """
+    if not facts or not any(facts.values()):
+        return ""
+    labels = (
+        ("pets", "Thú cưng / Pets"),
+        ("likes", "Bé thích / Likes"),
+        ("dislikes", "Bé không thích / Dislikes"),
+    )
+    lines = []
+    for key, label in labels:
+        vals = facts.get(key) or []
+        if vals:
+            lines.append(f"- {label}: {', '.join(str(v) for v in vals)}")
+    return "\n".join(lines)
+
+
 def build_system_prompt(
     profile: ChildProfile,
     memory_text: str = "",
     mode: str | None = None,
     lesson: str = "",
+    facts: dict | None = None,
 ) -> str:
-    """Base persona + the selected child's profile + (optional) remembered memory,
-    and — when a learning `mode` is active — that mode's leading script + the
-    chosen `lesson` content.
+    """Base persona + the selected child's profile + (optional) remembered memory
+    (durable `facts` + soft `memory_text` summary), and — when a learning `mode`
+    is active — that mode's leading script + the chosen `lesson` content.
 
-    memory_text is a short AI-generated summary of past sessions (see
-    memory_summarizer / child_store); omitted when empty (first session).
+    `facts` are durable, code-merged truths about the child (pets/likes/dislikes);
+    `memory_text` is the soft AI summary of past sessions. Both are omitted when
+    empty (a child with neither yields a byte-identical free-chat prompt).
 
     `mode`/`lesson` are optional: with no mode (free chat) the prompt is exactly
     the persona + profile + memory, unchanged — so existing behavior is preserved.
     """
     parts = [_BASE_SYSTEM_PROMPT, "", profile.to_prompt_text()]
+    facts_block = _render_facts(facts)
+    if facts_block:
+        parts += [
+            "",
+            "Sự thật bạn luôn nhớ về bé / Durable facts about the child:",
+            facts_block,
+        ]
     if memory_text.strip():
         parts += [
             "",
@@ -169,17 +200,21 @@ def build_live_connect_config(
     memory_text: str = "",
     mode: str | None = None,
     lesson: str = "",
+    facts: dict | None = None,
 ) -> types.LiveConnectConfig:
     """LiveConnectConfig: audio-only out, both transcriptions, strict safety,
-    bilingual system prompt for the selected child + their remembered memory, and
-    (optionally) a learning mode's script + lesson. With no mode it is identical to
-    the free-chat config. Audio/safety/hints are unchanged regardless of mode."""
+    bilingual system prompt for the selected child + their remembered memory
+    (durable `facts` + soft `memory_text`), and (optionally) a learning mode's
+    script + lesson. With no mode + no facts it is identical to the free-chat
+    config. Audio/safety/hints are unchanged regardless of mode."""
     return types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         system_instruction=types.Content(
             parts=[
                 types.Part(
-                    text=build_system_prompt(profile, memory_text, mode, lesson)
+                    text=build_system_prompt(
+                        profile, memory_text, mode, lesson, facts=facts
+                    )
                 )
             ]
         ),

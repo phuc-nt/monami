@@ -34,8 +34,20 @@ logger = logging.getLogger("child_store")
 # A dev/staging backend sets FIRESTORE_PREFIX (e.g. "dev_") so its data lands in a
 # SEPARATE top-level collection (dev_devices) and never touches the production
 # data that the TestFlight build uses. Prod leaves it unset → "devices".
-_FIRESTORE_PREFIX = os.environ.get("FIRESTORE_PREFIX", "")
-_DEVICES_COLLECTION = f"{_FIRESTORE_PREFIX}devices"
+def prefixed(name: str) -> str:
+    """Apply the shared dev/prod FIRESTORE_PREFIX to a top-level collection name.
+
+    The single source of truth for prefixing: child_store AND curriculum (and any
+    future module) route their top-level collection names through this so dev
+    ("dev_devices"/"dev_curriculum") never reads/writes prod data. Re-reads the env
+    each call so a test can monkeypatch FIRESTORE_PREFIX and reload nothing.
+    """
+    return f"{os.environ.get('FIRESTORE_PREFIX', '')}{name}"
+
+
+# Resolved LIVE via prefixed("devices") at each use (not bound at import) so the
+# prefix is read the same way curriculum reads its own — symmetric, and a test can
+# monkeypatch FIRESTORE_PREFIX without reloading this module.
 _CHILDREN_SUBCOLLECTION = "children"
 _PROFILES_DIR = Path(__file__).parent / "profiles"
 
@@ -73,11 +85,36 @@ def new_child_id() -> str:
     return uuid.uuid4().hex
 
 
+# --- Layered memory ---------------------------------------------------------
+#
+# memory holds three layers (all additive; legacy docs missing them read empty):
+#   facts:       durable, code-merged union about the CHILD; pets UNCAPPED (an
+#                identity fact is never evicted), likes/dislikes capped.
+#   summary:     soft model-written recap (unchanged from before).
+#   done_topics: finished curriculum topics as a real array (was inline text).
+# Writes use DOTTED FIELD PATHS so a write to one layer preserves the siblings —
+# a whole-`memory`-map set(merge=True) REPLACES the map and would drop siblings.
+# Fact-merge caps — the SINGLE source of truth (gemini_session imports these for
+# its union logic). pets = identity facts, never evicted (uncapped); likes/dislikes
+# bounded so the prompt stays small. Each item trimmed to FACT_ITEM_MAX_CHARS.
+FACTS_KEYS = ("pets", "likes", "dislikes")
+UNCAPPED_FACT_KEYS = ("pets",)
+FACT_CAP = 8
+FACT_ITEM_MAX_CHARS = 40
+
+# Internal alias kept for the existing module-private call sites below.
+_FACTS_KEYS = FACTS_KEYS
+
+
+def _empty_facts() -> dict:
+    return {k: [] for k in _FACTS_KEYS}
+
+
 # --- Public interface -------------------------------------------------------
 #
 # A "child" dict has shape:
 #   {id, name, gender, age, interests: [..], created_at,
-#    memory: {summary, updated_at}}
+#    memory: {summary, updated_at, facts, done_topics}}
 # Memory is always present (defaults to {"summary": "", "updated_at": None}).
 
 
@@ -159,30 +196,100 @@ def load_memory(device_id: str, child_id: str) -> str:
     return str((child.get("memory") or {}).get("summary", "")).strip()
 
 
-def save_memory(device_id: str, child_id: str, summary: str, updated_at: str | None) -> None:
-    """Merge-write only the memory sub-field (never clobbers profile fields).
+def load_memory_struct(device_id: str, child_id: str) -> dict:
+    """The child's layered memory as {facts, summary, done_topics}.
 
-    No-op if the child doesn't exist — same contract on BOTH backends. (Firestore
-    `set(merge=True)` would otherwise upsert a profile-less ghost doc, diverging
-    from the JSON backend; we guard against that so a guest/deleted-child write
-    never creates anything.)
+    A legacy doc with only `memory.summary` (text) reads as facts=empty,
+    done_topics=[] — the caller (gemini_session) parses legacy `đã học:` lines out
+    of `summary` into the array on the first layered write. Missing child →
+    all-empty struct, never raises.
     """
-    if get_child(device_id, child_id) is None:
+    child = get_child(device_id, child_id)
+    mem = (child or {}).get("memory") or {}
+    facts = _empty_facts()
+    stored_facts = mem.get("facts")
+    if isinstance(stored_facts, dict):
+        for k in _FACTS_KEYS:
+            vals = stored_facts.get(k)
+            if isinstance(vals, list):
+                facts[k] = [str(v) for v in vals if str(v).strip()]
+    done = mem.get("done_topics")
+    done_topics = [str(t) for t in done if str(t).strip()] if isinstance(done, list) else []
+    return {
+        "facts": facts,
+        "summary": str(mem.get("summary", "")).strip(),
+        "done_topics": done_topics,
+    }
+
+
+def save_memory_struct(
+    device_id: str,
+    child_id: str,
+    *,
+    summary: str | None = None,
+    facts: dict | None = None,
+    done_topics: list[str] | None = None,
+    updated_at: str | None = None,
+) -> None:
+    """Sibling-preserving write of the layered memory fields.
+
+    Only the fields passed (non-None) are written; the others are LEFT UNTOUCHED.
+    Firestore uses DOTTED FIELD PATHS (`memory.summary`, `memory.facts`,
+    `memory.done_topics`, `memory.updated_at`) via update(), NOT a whole-`memory`
+    set(merge=True) — that would replace the map and drop siblings. JSON deep-merges
+    into the existing `memory` sub-map.
+
+    No-op if the child doesn't exist (guest / deleted child) — same contract on
+    both backends, so a write never upserts a profile-less ghost doc.
+    """
+    child = get_child(device_id, child_id)
+    if child is None:
         return  # guest / deleted child: nothing to write
-    payload = {"memory": {"summary": summary.strip(), "updated_at": updated_at}}
+    paths: dict = {}
+    if summary is not None:
+        paths["memory.summary"] = summary.strip()
+    if facts is not None:
+        paths["memory.facts"] = {k: list(facts.get(k, [])) for k in _FACTS_KEYS}
+    if done_topics is not None:
+        paths["memory.done_topics"] = list(done_topics)
+    if not paths:
+        return
+    paths["memory.updated_at"] = updated_at
     if _backend() == "firestore":
-        _fs_merge(device_id, child_id, payload)
+        _fs_update(device_id, child_id, paths)
     else:
-        child = get_child(device_id, child_id)
-        child["memory"] = {"summary": summary.strip(), "updated_at": updated_at}
+        mem = dict(child.get("memory") or {})
+        for dotted, value in paths.items():
+            mem[dotted.split(".", 1)[1]] = value
+        child["memory"] = mem
         _json_set(device_id, child_id, child)
 
 
+def save_memory(device_id: str, child_id: str, summary: str, updated_at: str | None) -> None:
+    """Merge-write only the memory SUMMARY (never clobbers profile or other memory
+    layers). Thin wrapper over save_memory_struct so summary-only callers (the REST
+    PATCH /memory) preserve facts/done_topics automatically.
+
+    No-op if the child doesn't exist — same contract on BOTH backends.
+    """
+    save_memory_struct(device_id, child_id, summary=summary, updated_at=updated_at)
+
+
 def clear_memory(device_id: str, child_id: str) -> bool:
-    """Empty the memory summary but keep the child + profile. True if it existed."""
+    """Reset the WHOLE layered memory (summary + facts + done_topics) but keep the
+    child + profile. True if the child existed. A coherent "clear": a parent who
+    clears memory drops the durable facts and done-topics too, not just the recap.
+    """
     if get_child(device_id, child_id) is None:
         return False
-    save_memory(device_id, child_id, "", updated_at=None)
+    save_memory_struct(
+        device_id,
+        child_id,
+        summary="",
+        facts=_empty_facts(),
+        done_topics=[],
+        updated_at=None,
+    )
     return True
 
 
@@ -259,7 +366,7 @@ def _client():
 def _doc_ref(device_id: str, child_id: str):
     return (
         _client()
-        .collection(_DEVICES_COLLECTION)
+        .collection(prefixed("devices"))
         .document(_sanitize(device_id))
         .collection(_CHILDREN_SUBCOLLECTION)
         .document(_sanitize(child_id))
@@ -270,7 +377,7 @@ def _fs_list(device_id: str) -> list[dict]:
     try:
         col = (
             _client()
-            .collection(_DEVICES_COLLECTION)
+            .collection(prefixed("devices"))
             .document(_sanitize(device_id))
             .collection(_CHILDREN_SUBCOLLECTION)
         )
@@ -302,6 +409,20 @@ def _fs_merge(device_id: str, child_id: str, fields: dict) -> None:
         _doc_ref(device_id, child_id).set(fields, merge=True)
     except Exception as exc:  # noqa: BLE001
         logger.warning("firestore merge failed for %s: %s", _sanitize(child_id), exc)
+
+
+def _fs_update(device_id: str, child_id: str, paths: dict) -> None:
+    """Dotted-field-path update: each `a.b` key writes only that nested sub-field,
+    so sibling sub-fields of the same map survive. update() (not set(merge=True))
+    is what makes this a true partial write of a nested map.
+
+    The doc is guaranteed to exist (callers check get_child first), so update()'s
+    not-found behavior never fires for our paths.
+    """
+    try:
+        _doc_ref(device_id, child_id).update(paths)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("firestore update failed for %s: %s", _sanitize(child_id), exc)
 
 
 def _fs_delete(device_id: str, child_id: str) -> bool:

@@ -6,7 +6,7 @@ or dies on) from both sides, exercising the actual downlink → transcript →
 We mock the Gemini client + live session (no network): the fake session yields
 one in/out transcript turn then ends, so `transcript` is non-empty and the
 `finally` block's `_update_memory` would run IFF `persist` is true. We patch
-`save_memory` (the real persistence sink) and assert whether it's reached.
+`save_memory_struct` (the real persistence sink) and assert whether it's reached.
 """
 
 from __future__ import annotations
@@ -94,16 +94,25 @@ def _run(monkeypatch, *, device, profile, is_guest, child_record=None, mode=None
     monkeypatch.setattr(
         gemini_session.cfg, "build_live_connect_config", lambda *a, **k: object()
     )
-    # Real summarizer is mocked to return a fixed summary so we can assert the
-    # SINK (save_memory) is/isn't reached — the gate is what we're testing.
+    # Real summarizer is mocked to return a fixed struct so we can assert the
+    # SINK (save_memory_struct) is/isn't reached — the gate is what we're testing.
     monkeypatch.setattr(
-        gemini_session, "summarize", mock.AsyncMock(return_value="a new summary")
+        gemini_session,
+        "summarize",
+        mock.AsyncMock(
+            return_value={
+                "facts": {"pets": [], "likes": ["khủng long"], "dislikes": []},
+                "summary": "a new summary",
+            }
+        ),
     )
     # Control child resolution: a real record (persist) or None (guest/unknown).
     monkeypatch.setattr(gemini_session, "get_child", lambda d, c: child_record)
-    monkeypatch.setattr(gemini_session, "load_memory", lambda d, c: "")
+    monkeypatch.setattr(
+        gemini_session, "load_memory_struct", lambda d, c: gemini_session._empty_memory()
+    )
     save_spy = mock.MagicMock()
-    monkeypatch.setattr(gemini_session, "save_memory", save_spy)
+    monkeypatch.setattr(gemini_session, "save_memory_struct", save_spy)
 
     asyncio.run(
         gemini_session.run_session(
@@ -156,17 +165,17 @@ def test_registered_child_DOES_persist(monkeypatch):
         monkeypatch, device="devX", profile="c1", is_guest=False, child_record=record
     )
     save_spy.assert_called_once()
-    # Saved under the right (device, child), with the new summary.
+    # Saved under the right (device, child), with the new summary + merged facts.
     args, kwargs = save_spy.call_args
     assert args[0] == "devX" and args[1] == "c1"
-    assert args[2] == "a new summary"
+    assert kwargs["summary"] == "a new summary"
+    assert kwargs["facts"]["likes"] == ["khủng long"]  # newly-observed fact merged
+    assert kwargs["done_topics"] == []  # free chat → no done-topic
 
 
 def test_registered_child_learning_session_records_done_note(monkeypatch):
-    # A registered child in a learning mode saves a memory that includes the
-    # "đã học: <mode>:<id>" note (appended deterministically).
-    import curriculum
-
+    # A registered child in a learning mode saves memory whose done_topics array
+    # includes the "<mode>:<id>" token (recorded deterministically by code).
     record = {
         "id": "c1", "name": "Vy", "gender": "girl", "age": 5, "interests": [],
         "memory": {"summary": "", "updated_at": None},
@@ -176,6 +185,6 @@ def test_registered_child_learning_session_records_done_note(monkeypatch):
         child_record=record, mode="english",
     )
     save_spy.assert_called_once()
-    saved = save_spy.call_args.args[2]
+    done_topics = save_spy.call_args.kwargs["done_topics"]
     # The first english topic is "animals" (empty memory → not done).
-    assert curriculum.done_note("english", "animals") in saved
+    assert "english:animals" in done_topics

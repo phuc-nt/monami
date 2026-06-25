@@ -34,10 +34,11 @@ import logging
 from google import genai
 from google.genai import types
 
+import child_store
 import curriculum
 import gemini_session_config as cfg
 from child_profile import GUEST_PROFILE, profile_from_record
-from child_store import get_child, load_memory, save_memory
+from child_store import get_child, load_memory_struct, save_memory_struct
 from memory_summarizer import summarize
 
 logger = logging.getLogger("gemini_session")
@@ -165,18 +166,26 @@ async def run_session(
         logger.warning("child not found for device; running as guest (no memory)")
         persist = False
     profile = profile_from_record(record) if record else GUEST_PROFILE
-    memory_text = load_memory(device_id, child_id) if persist else ""
+    # Layered memory struct: {facts, summary, done_topics}. Guest → all-empty.
+    prior_memory = (
+        load_memory_struct(device_id, child_id) if persist else _empty_memory()
+    )
+    memory_text = prior_memory["summary"]
 
     client = _make_client()
     model = cfg.model_id()
     # For a learning mode, pick today's topic + render it into the lesson block.
     # Free chat (mode=None) → load_topic returns None → render_lesson returns ""
     # → the prompt is unchanged. A missing/broken curriculum file also yields ""
-    # (the mode then runs on its leading script alone).
-    topic = curriculum.load_topic(mode, memory_text)
+    # (the mode then runs on its leading script alone). Done-detection reads BOTH
+    # the done_topics array AND legacy `đã học:` lines still in the summary text.
+    topic = curriculum.load_topic(
+        mode, memory_text, done_topics=prior_memory["done_topics"]
+    )
     lesson = curriculum.render_lesson(mode, topic)
     config = cfg.build_live_connect_config(
-        profile, memory_text, mode=mode, lesson=lesson
+        profile, memory_text, mode=mode, lesson=lesson,
+        facts=prior_memory["facts"],
     )
 
     logger.info(
@@ -220,14 +229,12 @@ async def run_session(
         if persist:
             # For a learning session, record which topic was done so the next
             # session in that mode advances. `topic`/`mode` are set above (None
-            # for free chat → no done-note).
-            done = (
-                curriculum.done_note(mode, str(topic["id"]))
-                if (mode and topic)
-                else ""
+            # for free chat → no done-marker).
+            done_marker = (
+                f"{mode}:{topic['id']}" if (mode and topic) else ""
             )
             await _update_memory(
-                client, device_id, child_id, memory_text, transcript, done
+                client, device_id, child_id, prior_memory, transcript, done_marker
             )
 
 
@@ -241,72 +248,145 @@ async def _update_memory(
     client: genai.Client,
     device_id: str,
     child_id: str,
-    prior_summary: str,
+    prior_memory: dict,
     transcript: list[tuple[str, str]],
-    done_note: str = "",
+    done_marker: str = "",
 ) -> None:
-    """Summarize the session into the child's memory and save it. Best-effort.
+    """Summarize the session into the child's LAYERED memory and save it.
 
-    `done_note` (a learning session's "đã học: <mode>:<id>" marker, "" for free
-    chat) is appended DETERMINISTICALLY — code-controlled, not model-controlled —
-    so the format the loader matches on can never drift from what the AI writes.
+    Merges three layers, code-controlled (never model-controlled):
+      - facts:       union(prior facts, newly-observed facts). pets UNCAPPED;
+                     likes/dislikes capped — a durable identity fact is never lost.
+      - summary:     the soft recap the model returns (or prior on failure).
+      - done_topics: union(prior array, legacy markers parsed from prior summary,
+                     this session's `done_marker` like "english:animals").
 
-    Only ever called for a resolved (device_id, child_id) — guests are gated out
-    by the caller, so this never falls back to a default child.
+    Written via save_memory_struct (dotted paths) so each layer is independent.
+    Only ever called for a resolved (device_id, child_id) — guests are gated out.
     """
     if len(transcript) < _MIN_TRANSCRIPT_LINES:
         return
     transcript_text = "\n".join(f"{who}: {text}" for who, text in transcript)
     try:
-        # summarize() already returns the prior summary on its own errors; the
-        # only thing that can raise here is the outer timeout.
-        new_summary = await asyncio.wait_for(
-            summarize(client, prior_summary, transcript_text),
+        # summarize() returns the prior facts+summary on its own errors; only the
+        # outer timeout can raise here.
+        result = await asyncio.wait_for(
+            summarize(client, prior_memory, transcript_text),
             timeout=_SUMMARY_TIMEOUT_S,
         )
     except asyncio.TimeoutError:
         logger.warning("memory summary timed out; keeping prior")
         return
-    final = _with_done_notes(new_summary, prior_summary, done_note)
-    if final and final != prior_summary:
-        save_memory(device_id, child_id, final, updated_at=_now_iso())
-        logger.info("memory updated")
+
+    facts = _merge_facts(prior_memory.get("facts") or {}, result.get("facts") or {})
+    summary = result.get("summary", prior_memory.get("summary", ""))
+    done_topics = _merge_done_topics(prior_memory, done_marker)
+
+    if _memory_unchanged(prior_memory, facts, summary, done_topics):
+        return
+    save_memory_struct(
+        device_id,
+        child_id,
+        summary=summary,
+        facts=facts,
+        done_topics=done_topics,
+        updated_at=_now_iso(),
+    )
+    logger.info("memory updated")
 
 
-def _with_done_notes(summary: str, prior_summary: str, done_note: str) -> str:
-    """Return the new summary with ALL learning done-notes re-asserted.
-
-    Done-state is recorded as `curriculum.done_note` lines ("đã học: <mode>:<id>").
-    The summarizer is free-form prose and may drop those lines when it rewrites the
-    note — so we carry the markers forward DETERMINISTICALLY (code-controlled, not
-    model-controlled): every marker already in `prior_summary`, plus this session's
-    `done_note`, is preserved on its own line. Idempotent, order-stable, and a no-op
-    for free chat (no markers anywhere). This is what makes a finished topic stay
-    finished across many re-summarizations.
+def _merge_facts(prior: dict, new: dict) -> dict:
+    """Union prior + newly-observed facts per key. Order-stable, de-duplicated
+    (case-insensitive on the FULL string). `pets` is uncapped (identity fact never
+    evicted); other keys keep the FIRST child_store.FACT_CAP items (prior wins, so a
+    durable like isn't bumped by a transient one). Each kept item is trimmed to
+    child_store.FACT_ITEM_MAX_CHARS — AFTER dedup, so two distinct long facts that
+    share a prefix aren't collapsed into one.
     """
-    prior_markers = _done_markers(prior_summary)
-    markers = list(prior_markers)
-    if done_note and done_note not in markers:
-        markers.append(done_note)
-    # Strip any markers the model happened to copy, then append the canonical set
-    # so each appears exactly once, on its own line, after the prose.
-    body = "\n".join(
-        line for line in summary.splitlines() if line.strip() not in markers
-    ).rstrip()
-    if not markers:
-        return body
-    note_block = "\n".join(markers)
-    return f"{body}\n{note_block}" if body else note_block
+    out: dict = {}
+    for key in child_store.FACTS_KEYS:
+        merged: list[str] = []
+        seen: set[str] = set()
+        for item in list(prior.get(key) or []) + list(new.get(key) or []):
+            s = str(item).strip()
+            if not s:
+                continue
+            k = s.lower()  # dedup on the full string, before truncation
+            if k in seen:
+                continue
+            seen.add(k)
+            merged.append(s[:child_store.FACT_ITEM_MAX_CHARS])
+        if key not in child_store.UNCAPPED_FACT_KEYS:
+            merged = merged[:child_store.FACT_CAP]
+        out[key] = merged
+    return out
 
 
-def _done_markers(text: str) -> list[str]:
-    """The `đã học:` marker lines in a summary, in order (de-duplicated)."""
-    seen: list[str] = []
+def _merge_done_topics(prior_memory: dict, done_marker: str) -> list[str]:
+    """Union of the prior done_topics array, legacy `đã học:` markers still living
+    in the prior summary TEXT (parsed once, here), and this session's done_marker
+    (e.g. "english:animals"). Order-stable, de-duplicated. This is the migration:
+    once written, the array is the single source of truth.
+    """
+    topics: list[str] = []
+    seen: set[str] = set()
+
+    def _add(value: str) -> None:
+        v = value.strip()
+        if v and v not in seen:
+            seen.add(v)
+            topics.append(v)
+
+    for t in prior_memory.get("done_topics") or []:
+        _add(str(t))
+    for marker in _legacy_done_markers(prior_memory.get("summary", "")):
+        _add(marker)
+    if done_marker:
+        _add(done_marker)
+    return topics
+
+
+def _legacy_done_markers(text: str) -> list[str]:
+    """Parse "<mode>:<id>" tokens from legacy `đã học: <mode>:<id>` summary lines.
+
+    Uses the SAME anchored marker as curriculum.DONE_MARKER so a topic id that
+    merely appears as a word in the prose can't be mistaken for a done-note.
+    Returns the bare "<mode>:<id>" token (the array's element shape).
+    """
+    out: list[str] = []
+    prefix = curriculum.DONE_MARKER  # "đã học:"
     for line in (text or "").splitlines():
         s = line.strip()
-        if s.startswith(curriculum.DONE_MARKER) and s not in seen:
-            seen.append(s)
-    return seen
+        if s.startswith(prefix):
+            token = s[len(prefix):].strip()
+            if token:
+                out.append(token)
+    return out
+
+
+def _memory_unchanged(
+    prior: dict, facts: dict, summary: str, done_topics: list[str]
+) -> bool:
+    """True if nothing meaningful changed (skip the write). Compares the merged
+    result to the prior struct so a no-op session doesn't churn updated_at."""
+    prior_facts = prior.get("facts") or {}
+
+    def _norm(f: dict) -> dict:
+        return {k: list(f.get(k) or []) for k in ("pets", "likes", "dislikes")}
+
+    return (
+        _norm(prior_facts) == _norm(facts)
+        and str(prior.get("summary", "")) == str(summary)
+        and list(prior.get("done_topics") or []) == list(done_topics)
+    )
+
+
+def _empty_memory() -> dict:
+    return {
+        "facts": {"pets": [], "likes": [], "dislikes": []},
+        "summary": "",
+        "done_topics": [],
+    }
 
 
 def _now_iso() -> str:

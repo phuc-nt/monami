@@ -84,6 +84,30 @@ def test_memory_edit_then_clear(client):
     assert client.get(f"/devices/dev1/children").json()[0]["id"] == c["id"]
 
 
+def test_patch_memory_preserves_facts_then_clear_resets_all(client):
+    # M1 caller invariant: a parent editing the summary (PATCH /memory) must NOT
+    # drop durable facts/done_topics; clearing resets all three coherently.
+    import child_store
+
+    c = _make(client, "dev1").json()
+    # Seed layered facts + done_topics directly (as a learning session would).
+    child_store.save_memory_struct(
+        "dev1", c["id"],
+        facts={"pets": ["Mướp"], "likes": [], "dislikes": []},
+        done_topics=["english:animals"],
+    )
+    # Parent edits ONLY the summary via REST.
+    client.patch(f"/devices/dev1/children/{c['id']}/memory", json={"summary": "recap"})
+    m = child_store.load_memory_struct("dev1", c["id"])
+    assert m["summary"] == "recap"
+    assert m["facts"]["pets"] == ["Mướp"]          # facts preserved
+    assert m["done_topics"] == ["english:animals"]  # done_topics preserved
+    # Clear resets every layer.
+    client.delete(f"/devices/dev1/children/{c['id']}/memory")
+    m2 = child_store.load_memory_struct("dev1", c["id"])
+    assert m2["summary"] == "" and m2["facts"]["pets"] == [] and m2["done_topics"] == []
+
+
 def test_memory_edit_does_not_clobber_profile(client):
     c = _make(client, "dev1", name="Vy", interests=["Elsa"]).json()
     client.patch(f"/devices/dev1/children/{c['id']}/memory", json={"summary": "abc"})
