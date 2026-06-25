@@ -1,7 +1,8 @@
-// Dev-only: render the VoiceHome visual layout in each voice state to PNGs so the
-// UI can be reviewed without a backend/mic. Reproduces the screen's structure
-// (robot face + status line + talk button) with a fixed expression/label per
-// state — it does NOT use the real controller (which needs native plugins).
+// Dev-only: render the Sticker-Scene voice layout in each voice state to PNGs so
+// the UI can be reviewed without a backend/mic. Reproduces the screen's structure
+// (scene backdrop + standing robot + speech bubble + talk pill) with a fixed
+// expression/label per state — it does NOT use the real controller (which needs
+// native plugins). Also asserts the per-state talk-lock + label mapping.
 //
 //   DUMP_STATES=1 flutter test test/voice_screen_states_render_test.dart
 
@@ -11,95 +12,68 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monami_app/app_theme.dart';
 import 'package:monami_app/robot_face.dart';
+import 'package:monami_app/scene/flat_art_kit.dart';
+import 'package:monami_app/scene/scene_widgets.dart';
+import 'package:monami_app/scene/scene_worlds.dart';
 
 class _Spec {
-  const _Spec(this.name, this.expr, this.label, this.color, this.button, this.btnColor);
+  const _Spec(this.name, this.expr, this.bubble, this.button, this.ready);
   final String name;
   final RobotExpression expr;
-  final String label;
-  final Color color;
+  final String bubble;
   final String button;
-  final Color btnColor;
+  final bool ready; // talk button enabled?
 }
 
+// Mirrors the real VoiceHome mapping: locked on connecting+disconnected.
 const _specs = [
-  _Spec('connecting', RobotExpression.sleepy, 'Đang đánh thức bạn nhỏ…',
-      Colors.amberAccent, 'Đợi một chút…', Colors.grey),
-  _Spec('idle', RobotExpression.calm, 'Sẵn sàng — chạm để nói',
-      Colors.greenAccent, 'Chạm để nói', Colors.indigo),
-  _Spec('listening', RobotExpression.attentive, 'Đang nghe bé…',
-      Colors.redAccent, 'Đang nghe… (chạm để dừng)', Colors.red),
-  _Spec('speaking', RobotExpression.talking, 'Đang trả lời…',
-      Colors.lightBlueAccent, 'Đang nghe… (chạm để dừng)', Colors.red),
+  _Spec('connecting', RobotExpression.sleepy, 'Mình đang thức dậy…',
+      'Đợi một chút…', false),
+  _Spec('idle', RobotExpression.calm, 'Chạm để nói với mình nhé!',
+      'Chạm để nói', true),
+  _Spec('listening', RobotExpression.attentive, 'Mình đang nghe nè…',
+      'Chạm để dừng', true),
+  _Spec('speaking', RobotExpression.talking, 'Để mình kể cho nghe…',
+      'Chạm để dừng', true),
+  _Spec('disconnected', RobotExpression.sleepy, 'Ơ, mất kết nối rồi',
+      'Chưa sẵn sàng', false),
 ];
 
-Widget _screen(_Spec s, Color tint) {
-  final showStatus = s.name == 'connecting'; // kid screen hides status otherwise
+Widget _screen(_Spec s) {
+  final spec = specForId('night');
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     home: Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const Icon(Icons.arrow_back, color: Colors.white),
-        title: const Text('Bạn của Vy', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
-      ),
-      body: Container(
-        decoration: childBackground(tint),
+      body: SceneBackdrop(
+        spec: spec,
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  flex: 5,
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 560),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            colors: [tint.withValues(alpha: 0.22), Colors.transparent],
-                            radius: 0.7,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: RobotFace(expression: s.expr, litColor: tint),
-                        ),
-                      ),
-                    ),
-                  ),
+                const Spacer(),
+                SpeechBubble(
+                    text: s.bubble, color: spec.bubbleColor, ink: spec.bubbleInk),
+                const SizedBox(height: 8),
+                StandingRobot(
+                  expression: s.expr,
+                  variant: FaceVariant.girl,
+                  bodyColor: FlatArt.magenta,
                 ),
-                if (showStatus) ...[
-                  const SizedBox(height: 12),
-                  Text(s.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: s.color, fontWeight: FontWeight.w600)),
-                ],
-                const SizedBox(height: 20),
+                const Spacer(),
+                // Talk pill: grey + disabled label when not ready (lock).
                 Container(
-                  height: 96,
+                  height: 76,
                   decoration: BoxDecoration(
-                    color: s.btnColor,
-                    borderRadius: BorderRadius.circular(48),
-                    boxShadow: [
-                      BoxShadow(color: s.btnColor.withValues(alpha: 0.5), blurRadius: 20),
-                    ],
+                    color: s.ready ? spec.talkColor : const Color(0xFFC9CFD8),
+                    borderRadius: BorderRadius.circular(38),
+                    border: inkBorder(3.5),
+                    boxShadow: hardShadow(offset: const Offset(0, 6)),
                   ),
                   child: Center(
-                    child: Text(s.button,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600)),
-                  ),
+                      child:
+                          Text(s.button, style: faFont(20, w: FontWeight.w800))),
                 ),
               ],
             ),
@@ -111,6 +85,12 @@ Widget _screen(_Spec s, Color tint) {
 }
 
 void main() {
+  // NOTE: the talk-button LOCK (disabled during connecting/disconnected) is
+  // enforced AND tested at the controller boundary — VoiceController.toggleMic()
+  // returns early on those states (see voice_controller.dart + echo_gate_test).
+  // This file is a dev-only PNG render smoke check; it does not re-assert the lock
+  // (a same-file literal would be a phantom test).
+
   testWidgets('render voice screen states', (tester) async {
     tester.view.physicalSize = const Size(393 * 3, 852 * 3); // iPhone-ish
     tester.view.devicePixelRatio = 3;
@@ -122,7 +102,7 @@ void main() {
         Center(
           child: RepaintBoundary(
             key: key,
-            child: SizedBox(width: 393, height: 852, child: _screen(s, const Color(0xFFE8A0D8))),
+            child: SizedBox(width: 393, height: 852, child: _screen(s)),
           ),
         ),
       );

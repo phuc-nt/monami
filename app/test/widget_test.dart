@@ -6,11 +6,14 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:monami_app/main.dart';
+import 'package:monami_app/scene/theme_rotation.dart';
 
 void main() {
   testWidgets('app boots to the picker; failed fetch shows error not empty',
       (tester) async {
-    await tester.pumpWidget(const MonamiApp(deviceId: 'test-device'));
+    await tester.pumpWidget(
+      MonamiApp(deviceId: 'test-device', themeRotation: ThemeRotation()),
+    );
     // In the test binding, http returns 400 with no real network, so the picker
     // resolves to its ERROR state. Pump until it settles.
     await tester.pump();

@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:monami_app/main.dart';
+import 'package:monami_app/scene/theme_rotation.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +25,10 @@ void main() {
   }
 
   testWidgets('mode selector renders + switches mode', (tester) async {
-    await tester.pumpWidget(const MonamiApp(deviceId: 'e2e-p3-mode'));
+    final tr = ThemeRotation();
+    await tr.load();
+    await tester.pumpWidget(
+        MonamiApp(deviceId: 'e2e-p3-mode', themeRotation: tr));
     await settle(tester);
 
     // From the picker, go straight to a guest voice session (no setup needed).

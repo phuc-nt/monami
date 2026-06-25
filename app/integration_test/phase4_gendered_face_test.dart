@@ -13,6 +13,7 @@ import 'package:monami_app/child_model.dart';
 import 'package:monami_app/child_service.dart';
 import 'package:monami_app/main.dart';
 import 'package:monami_app/robot_face.dart';
+import 'package:monami_app/scene/theme_rotation.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -48,7 +49,9 @@ void main() {
   }
 
   testWidgets('each child shows its gendered face + palette', (tester) async {
-    await tester.pumpWidget(const MonamiApp(deviceId: deviceId));
+    final tr = ThemeRotation();
+    await tr.load();
+    await tester.pumpWidget(MonamiApp(deviceId: deviceId, themeRotation: tr));
     await settle(tester);
 
     // Both children listed.

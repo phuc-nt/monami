@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:monami_app/child_service.dart';
 import 'package:monami_app/main.dart';
+import 'package:monami_app/scene/theme_rotation.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +33,9 @@ void main() {
   }
 
   testWidgets('full profile management flow', (tester) async {
-    await tester.pumpWidget(const MonamiApp(deviceId: deviceId));
+    final tr = ThemeRotation();
+    await tr.load();
+    await tester.pumpWidget(MonamiApp(deviceId: deviceId, themeRotation: tr));
     await settle(tester);
 
     // 1) Empty state (real backend, no children yet).

@@ -15,6 +15,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:monami_app/child_service.dart';
 import 'package:monami_app/profile_picker.dart';
+import 'package:monami_app/scene/scene_worlds.dart';
 
 ChildService _serviceReturning(List<Map<String, dynamic>> children) {
   final client = MockClient((req) async => http.Response.bytes(
@@ -22,6 +23,11 @@ ChildService _serviceReturning(List<Map<String, dynamic>> children) {
         200,
         headers: {'content-type': 'application/json; charset=utf-8'},
       ));
+  return ChildService(restBase: 'http://x', deviceId: 'd', client: client);
+}
+
+ChildService _serviceFailing() {
+  final client = MockClient((req) async => http.Response('boom', 500));
   return ChildService(restBase: 'http://x', deviceId: 'd', client: client);
 }
 
@@ -50,6 +56,7 @@ void main() {
                 _child('c1', 'Vy', 'girl'),
                 _child('c2', 'Phong', 'boy'),
               ]),
+              spec: specForId('night'),
               onPick: (_) {},
               onGuest: () {},
             ),
@@ -87,6 +94,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: ProfilePicker(
         service: _serviceReturning([]),
+        spec: specForId('night'),
         onPick: (_) {},
         onGuest: () {},
       ),
@@ -95,5 +103,26 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Thêm bé để bắt đầu'), findsOneWidget);
     expect(find.text('Thêm bé'), findsOneWidget);
+  });
+
+  testWidgets('fetch error shows retry, NOT the empty state (contract)',
+      (tester) async {
+    // The load-bearing contract: a fetch error must look DISTINCT from an empty
+    // list, or a parent re-creates their children.
+    await tester.pumpWidget(MaterialApp(
+      home: ProfilePicker(
+        service: _serviceFailing(),
+        spec: specForId('night'),
+        onPick: (_) {},
+        onGuest: () {},
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Không tải được danh sách bé'), findsOneWidget);
+    expect(find.text('Thử lại'), findsOneWidget);
+    // Must NOT show the empty-state copy or the add affordance.
+    expect(find.text('Thêm bé để bắt đầu'), findsNothing);
+    expect(find.text('Thêm bé'), findsNothing);
   });
 }
