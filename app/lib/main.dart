@@ -1,9 +1,10 @@
-// Voice companion home: a cute LED robot face the child talks to. Tap the button
-// to talk; the face reacts to the live voice state (listening / talking / happy /
-// sleepy). The transcript chat is hidden by default behind a small dev toggle.
+// Voice companion home: an LED robot character the child talks to, standing in
+// an illustrated Sticker-Scene world with a comic speech bubble. Tap the button
+// to talk; the face + bubble react to the live voice state (listening / talking /
+// happy / sleepy). The transcript chat is hidden behind a dev long-press.
 
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
-
 import 'package:flutter/services.dart';
 
 import 'app_config.dart';
@@ -15,6 +16,11 @@ import 'learning_mode.dart';
 import 'profile_picker.dart';
 import 'responsive.dart';
 import 'robot_face.dart';
+import 'scene/flat_art_kit.dart';
+import 'scene/scene_spec.dart';
+import 'scene/scene_widgets.dart';
+import 'scene/scene_worlds.dart';
+import 'scene/theme_rotation.dart';
 import 'voice_controller.dart';
 
 /// Map the voice state (+ happy pulse) to a robot expression. The happy pulse
@@ -34,17 +40,26 @@ RobotExpression _expressionFor(VoiceController c) {
 
 Future<void> main() async {
   // Platform channels (Keychain via flutter_secure_storage, shared_preferences)
-  // need the binding initialized before we resolve the device identity.
+  // need the binding initialized before we resolve identity + theme.
   WidgetsFlutterBinding.ensureInitialized();
   final deviceId = await DeviceIdentity().ensure();
-  runApp(MonamiApp(deviceId: deviceId));
+  final themeRotation = ThemeRotation();
+  await themeRotation.load(); // load the persisted world before the first frame
+  runApp(MonamiApp(deviceId: deviceId, themeRotation: themeRotation));
 }
 
 class MonamiApp extends StatefulWidget {
-  const MonamiApp({super.key, required this.deviceId});
+  const MonamiApp({
+    super.key,
+    required this.deviceId,
+    required this.themeRotation,
+  });
 
   /// This install's anonymous id; scopes children + memory on the backend.
   final String deviceId;
+
+  /// The device-wide active world + its rotation policy.
+  final ThemeRotation themeRotation;
 
   @override
   State<MonamiApp> createState() => _MonamiAppState();
@@ -72,47 +87,171 @@ class _MonamiAppState extends State<MonamiApp> {
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: Builder(
-        builder: (context) => ProfilePicker(
-          service: _service,
-          onPick: (child) {
-            final nav = Navigator.of(context);
-            // Guard a fast double-tap (likely with a 5-year-old): if we've
-            // already pushed VoiceHome, ignore the extra tap so we don't open a
-            // second session/socket/mic.
-            if (nav.canPop()) return;
-            nav.push(MaterialPageRoute(
-              builder: (_) => VoiceHome(child: child, deviceId: widget.deviceId),
-            ));
-          },
-          onGuest: () {
-            final nav = Navigator.of(context);
-            if (nav.canPop()) return;
-            // Guest: no deviceId, the "guest" profile → backend persists nothing.
-            // (Full guest UX lands in phase 5; this already routes correctly.)
-            nav.push(MaterialPageRoute(
-              builder: (_) => const VoiceHome.guest(),
-            ));
-          },
+        builder: (context) => AnimatedBuilder(
+          // Rebuild the picker when the world rotates (after a long session) so
+          // the new world shows on return.
+          animation: widget.themeRotation,
+          builder: (context, _) => ProfilePicker(
+            service: _service,
+            spec: widget.themeRotation.spec,
+            onOpenThemeSetting: () => _openThemeSetting(context),
+            onPick: (child) {
+              final nav = Navigator.of(context);
+              // Guard a fast double-tap (likely with a 5-year-old): if we've
+              // already pushed VoiceHome, ignore the extra tap so we don't open a
+              // second session/socket/mic.
+              if (nav.canPop()) return;
+              nav.push(MaterialPageRoute(
+                builder: (_) => VoiceHome(
+                  child: child,
+                  deviceId: widget.deviceId,
+                  spec: widget.themeRotation.spec,
+                  themeRotation: widget.themeRotation,
+                ),
+              ));
+            },
+            onGuest: () {
+              final nav = Navigator.of(context);
+              if (nav.canPop()) return;
+              // Guest: no deviceId, the "guest" profile → backend persists nothing.
+              nav.push(MaterialPageRoute(
+                builder: (_) => VoiceHome.guest(
+                  spec: widget.themeRotation.spec,
+                  themeRotation: widget.themeRotation,
+                ),
+              ));
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openThemeSetting(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: FlatArt.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _ThemeSettingSheet(themeRotation: widget.themeRotation),
+    );
+  }
+}
+
+/// Grown-up theme setting: choose Fixed (lock one world) or Random per session.
+class _ThemeSettingSheet extends StatelessWidget {
+  const _ThemeSettingSheet({required this.themeRotation});
+  final ThemeRotation themeRotation;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: themeRotation,
+      builder: (context, _) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Khung cảnh', style: faFont(20, w: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text('Chọn cố định một khung cảnh, hoặc đổi mới mỗi lần chơi.',
+                  style: faFont(14, w: FontWeight.w500, c: FlatArt.inkSoft)),
+              const SizedBox(height: 16),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeThumbColor: FlatArt.magenta,
+                title: Text('Đổi mỗi lần chơi',
+                    style: faFont(16, w: FontWeight.w700)),
+                subtitle: Text('Sau mỗi buổi chơi dài, khung cảnh sẽ đổi mới.',
+                    style: faFont(13, w: FontWeight.w500, c: FlatArt.inkSoft)),
+                value: themeRotation.randomPerSession,
+                onChanged: (on) =>
+                    on ? themeRotation.setRandom() : themeRotation.setFixed(themeRotation.currentWorldId),
+              ),
+              const SizedBox(height: 8),
+              Text('Hoặc chọn một khung cảnh cố định:',
+                  style: faFont(14, w: FontWeight.w700)),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final s in allScenes)
+                    _WorldChip(
+                      spec: s,
+                      selected: !themeRotation.randomPerSession &&
+                          themeRotation.currentWorldId == s.id,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        themeRotation.setFixed(s.id);
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
+class _WorldChip extends StatelessWidget {
+  const _WorldChip(
+      {required this.spec, required this.selected, required this.onTap});
+  final SceneSpec spec;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    return FaPressable(
+      color: selected ? FlatArt.ink : FlatArt.surface,
+      radius: 14,
+      borderWidth: 2,
+      shadowOffset: const Offset(0, 3),
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      child: Text(spec.title,
+          style: faFont(14,
+              w: FontWeight.w800,
+              c: selected ? Colors.white : FlatArt.ink)),
+    );
+  }
+}
+
 class VoiceHome extends StatefulWidget {
-  const VoiceHome({super.key, required this.child, this.deviceId = ''});
+  const VoiceHome({
+    super.key,
+    required this.child,
+    required this.spec,
+    required this.themeRotation,
+    this.deviceId = '',
+  });
 
   /// Guest session: no child profile, no deviceId → backend persists nothing.
-  const VoiceHome.guest({super.key})
-      : child = null,
+  const VoiceHome.guest({
+    super.key,
+    required this.spec,
+    required this.themeRotation,
+  })  : child = null,
         deviceId = '';
 
-  /// The selected child (drives the profile + theme color). Null = guest.
+  /// The selected child (drives the profile + tint + face variant). Null = guest.
   final Child? child;
 
   /// This install's deviceId, scoping the child + memory on the backend. Empty
   /// for a guest session.
   final String deviceId;
+
+  /// The world to render the voice screen in.
+  final SceneSpec spec;
+
+  /// The rotation service — told how long this session lasted on the way out.
+  final ThemeRotation themeRotation;
 
   bool get isGuest => child == null;
 
@@ -131,39 +270,63 @@ class VoiceHome extends StatefulWidget {
 
 class _VoiceHomeState extends State<VoiceHome> {
   late final VoiceController _controller;
+  late final ConfettiController _confetti;
   bool _showTranscript = false; // dev-only chat view, hidden by default
+  bool _lastHappyPulse = false; // tracks the pulse edge so confetti fires once
+  // When the child entered this screen — used to measure session dwell so the
+  // world can rotate after a long session.
+  late final DateTime _enteredAt;
 
   @override
   void initState() {
     super.initState();
+    _enteredAt = DateTime.now();
     _controller = VoiceController(
       profileId: widget.profileId,
       base: AppConfig.wsBase,
       token: AppConfig.token,
       deviceId: widget.deviceId,
     );
+    _confetti = ConfettiController(duration: const Duration(milliseconds: 1200));
+    _controller.addListener(_onState);
     _controller.connect();
+  }
+
+  void _onState() {
+    // Fire the celebrate burst once, on the RISING edge of the happy pulse (a
+    // turn just finished happily). The pulse stays true ~900ms and the controller
+    // notifies for other reasons in that window (transcript deltas, state flips),
+    // so edge-detect to avoid re-triggering the same burst.
+    final pulse = _controller.happyPulse;
+    if (pulse && !_lastHappyPulse) _confetti.play();
+    _lastHappyPulse = pulse;
   }
 
   bool _leaving = false;
 
   @override
   void dispose() {
+    _controller.removeListener(_onState);
     _controller.dispose();
+    _confetti.dispose();
     super.dispose();
   }
 
   // Close the session (flush the WS) BEFORE leaving so the backend summarizes
-  // this child's memory now, then pop back to the picker.
+  // this child's memory now, then tell the rotation service how long the session
+  // lasted (so the world can change), then pop back to the picker.
   Future<void> _leave() async {
     if (_leaving) return;
     _leaving = true;
     await _controller.shutdown();
+    await widget.themeRotation.onSessionEnd(DateTime.now().difference(_enteredAt));
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final s = widget.spec;
+    final headInk = s.headingInk;
     return PopScope(
       // Intercept the back gesture/arrow: run shutdown() first, then pop.
       canPop: false,
@@ -171,100 +334,127 @@ class _VoiceHomeState extends State<VoiceHome> {
         if (!didPop) _leave();
       },
       child: Scaffold(
-        // Transparent so the per-child gradient shows through.
-        backgroundColor: Colors.transparent,
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          // Back returns to the picker → ends the session → backend summarizes.
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _leave,
-          ),
-          // Long-press the title to toggle the dev transcript — hidden from a
-          // child (no visible button), reachable by the grown-up.
-          title: GestureDetector(
-            onLongPress: () =>
-                setState(() => _showTranscript = !_showTranscript),
-            child: Text('Bạn của ${widget.displayName}'),
-          ),
-        ),
-        body: Container(
-          decoration: childBackground(widget.tint),
-          child: SafeArea(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                final pad = context.isTablet ? 40.0 : 24.0;
-                // Hide the status text on the kid view once we're live (the face
-                // conveys idle/listening/speaking). Keep it for connecting (the
-                // cold-start "Đang đánh thức bạn nhỏ…" cue) and disconnected (with
-                // the reconnect button) + any error.
-                final showStatus =
-                    _controller.state == VoiceState.connecting ||
-                        _controller.state == VoiceState.disconnected ||
-                        _controller.error != null;
-                return Padding(
-                  padding: EdgeInsets.all(pad),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // The robot face is the hero — filling the space, with a
-                      // soft glow behind it in the child's color.
-                      Expanded(
-                        flex: _showTranscript ? 3 : 5,
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                                maxWidth: context.isTablet ? 720 : 560),
-                            child: _GlowingFace(
-                              expression: _expressionFor(_controller),
-                              variant: widget.faceVariant,
-                              color: widget.tint,
-                            ),
+        body: SceneBackdrop(
+          spec: s,
+          child: Stack(
+            children: [
+              SafeArea(
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, _) {
+                    final pad = context.isTablet ? 40.0 : 20.0;
+                    // Show the status line only when there's something a grown-up
+                    // needs (cold-start, disconnected, error); the face + bubble
+                    // carry idle/listening/speaking for the kid.
+                    final showStatus =
+                        _controller.state == VoiceState.connecting ||
+                            _controller.state == VoiceState.disconnected ||
+                            _controller.error != null;
+                    return Padding(
+                      padding: EdgeInsets.all(pad),
+                      child: Column(
+                        children: [
+                          _topBar(context, headInk),
+                          const Spacer(),
+                          _bubble(s),
+                          const SizedBox(height: 8),
+                          StandingRobot(
+                            expression: _expressionFor(_controller),
+                            variant: widget.faceVariant,
+                            bodyColor: widget.tint,
+                            width: context.isTablet ? 360 : 290,
                           ),
-                        ),
+                          if (showStatus) ...[
+                            const SizedBox(height: 12),
+                            _StatusLine(
+                              state: _controller.state,
+                              error: _controller.error,
+                              onReconnect: _controller.reconnect,
+                            ),
+                          ],
+                          if (_showTranscript) ...[
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: _TranscriptView(turns: _controller.turns),
+                            ),
+                          ] else
+                            const Spacer(),
+                          _ModeSelector(controller: _controller),
+                          const SizedBox(height: 16),
+                          _TalkButton(controller: _controller, color: s.talkColor),
+                          const SizedBox(height: 8),
+                        ],
                       ),
-                      if (showStatus) ...[
-                        const SizedBox(height: 12),
-                        _StatusLine(
-                          state: _controller.state,
-                          error: _controller.error,
-                          onReconnect: _controller.reconnect,
-                        ),
-                      ],
-                      if (_showTranscript) ...[
-                        const SizedBox(height: 12),
-                        Expanded(
-                          flex: 2,
-                          child: _TranscriptView(turns: _controller.turns),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      _ModeSelector(controller: _controller, tint: widget.tint),
-                      const SizedBox(height: 16),
-                      _TalkButton(controller: _controller),
-                    ],
-                  ),
-                );
-              },
-            ),
+                    );
+                  },
+                ),
+              ),
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConfettiWidget(
+                  confettiController: _confetti,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  emissionFrequency: 0.06,
+                  numberOfParticles: 16,
+                  gravity: 0.25,
+                  colors: const [
+                    FlatArt.magenta,
+                    FlatArt.cyan,
+                    FlatArt.yellow,
+                    FlatArt.mint,
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  Widget _topBar(BuildContext context, Color headInk) => Row(children: [
+        IconButton(
+          icon: Icon(Icons.arrow_back_rounded, color: headInk),
+          onPressed: _leave,
+        ),
+        const Spacer(),
+        // Long-press the name plaque to toggle the dev transcript — hidden from a
+        // child (no visible button), reachable by the grown-up.
+        GestureDetector(
+          onLongPress: () => setState(() => _showTranscript = !_showTranscript),
+          child: FaBlock(
+            color: FlatArt.surface,
+            radius: 14,
+            borderWidth: 2,
+            shadowOffset: const Offset(0, 3),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            child: Text('Bạn của ${widget.displayName}',
+                style: faFont(16, w: FontWeight.w800)),
+          ),
+        ),
+        const Spacer(),
+        const SizedBox(width: 48), // balance the back button
+      ]);
+
+  Widget _bubble(SceneSpec s) {
+    // Map the REAL voice state to the kid-facing bubble copy + color.
+    final (label, color, ink) = switch (_controller.state) {
+      VoiceState.connecting => ('Mình đang thức dậy…', FlatArt.yellow, FlatArt.ink),
+      VoiceState.idle => ('Chạm để nói với mình nhé!', s.bubbleColor, s.bubbleInk),
+      VoiceState.listening => ('Mình đang nghe nè…', FlatArt.magenta, FlatArt.ink),
+      VoiceState.speaking => ('Để mình kể cho nghe…', FlatArt.cyan, FlatArt.ink),
+      VoiceState.disconnected => ('Ơ, mất kết nối rồi', FlatArt.inkSoft, Colors.white),
+    };
+    return SpeechBubble(text: label, color: color, ink: ink);
+  }
 }
 
-/// A compact row of mode chips on the voice screen: free chat (default) +
-/// the three learning modes. Tapping one switches the session's mode (which
-/// reconnects). Big, few, icon-led — sits above the talk button without
-/// crowding the robot-face hero. Listens to the controller so the active chip
-/// stays highlighted.
+/// A horizontal row of mode chips: free chat (default) + the learning modes.
+/// Tapping one switches the session's mode (which reconnects). Listens to the
+/// controller so the active chip stays highlighted.
 class _ModeSelector extends StatefulWidget {
-  const _ModeSelector({required this.controller, required this.tint});
+  const _ModeSelector({required this.controller});
   final VoiceController controller;
-  final Color tint;
 
   @override
   State<_ModeSelector> createState() => _ModeSelectorState();
@@ -289,22 +479,27 @@ class _ModeSelectorState extends State<_ModeSelector> {
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (context, _) {
-        return Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final m in LearningMode.values)
-              _ModeChip(
-                mode: m,
-                selected: widget.controller.mode == m,
-                tint: widget.tint,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _pick(m);
-                },
-              ),
-          ],
+        return SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            children: [
+              for (final m in LearningMode.values)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _ModeChip(
+                    mode: m,
+                    selected: widget.controller.mode == m,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _pick(m);
+                    },
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -315,84 +510,40 @@ class _ModeChip extends StatelessWidget {
   const _ModeChip({
     required this.mode,
     required this.selected,
-    required this.tint,
     required this.onTap,
   });
   final LearningMode mode;
   final bool selected;
-  final Color tint;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : Colors.white70;
-    return Material(
-      color: selected
-          ? tint.withValues(alpha: 0.28)
-          : Colors.white.withValues(alpha: 0.06),
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: selected ? tint : Colors.white24,
-          width: selected ? 2 : 1,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? FlatArt.ink : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: inkBorder(2),
+          boxShadow: hardShadow(offset: const Offset(0, 3)),
         ),
-      ),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(mode.icon, size: 18, color: fg),
-              const SizedBox(width: 6),
-              Text(mode.label,
-                  style: TextStyle(
-                      color: fg,
-                      fontSize: 14,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w500)),
-            ],
-          ),
-        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(mode.icon, size: 17, color: selected ? Colors.white : FlatArt.ink),
+          const SizedBox(width: 6),
+          Text(mode.label,
+              style: faFont(13,
+                  w: FontWeight.w700,
+                  c: selected ? Colors.white : FlatArt.ink)),
+        ]),
       ),
     );
   }
 }
 
-/// The robot face hero: the LED face with a soft radial glow behind it in the
-/// child's color, so it reads as the centerpiece rather than floating in space.
-class _GlowingFace extends StatelessWidget {
-  const _GlowingFace({
-    required this.expression,
-    required this.variant,
-    required this.color,
-  });
-  final RobotExpression expression;
-  final FaceVariant variant;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          colors: [color.withValues(alpha: 0.22), Colors.transparent],
-          radius: 0.7,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: RobotFace(
-            expression: expression, variant: variant, litColor: color),
-      ),
-    );
-  }
-}
-
-/// A slim status line under the robot face: a short label + (on disconnect) a
-/// reconnect button, plus any error text. The face carries the main expression;
-/// this is just words for the grown-up.
+/// A slim status line under the robot: a short label + (on disconnect) a
+/// reconnect button, plus any error text. Shown only for connecting/disconnected/
+/// error (the face + bubble carry the rest).
 class _StatusLine extends StatelessWidget {
   const _StatusLine({required this.state, this.error, this.onReconnect});
   final VoiceState state;
@@ -402,34 +553,45 @@ class _StatusLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (state) {
-      VoiceState.disconnected => ('Mất kết nối', Colors.grey),
-      VoiceState.connecting => ('Đang đánh thức bạn nhỏ…', Colors.amberAccent),
-      VoiceState.idle => ('Sẵn sàng — chạm để nói', Colors.greenAccent),
-      VoiceState.listening => ('Đang nghe bé…', Colors.redAccent),
-      VoiceState.speaking => ('Đang trả lời…', Colors.lightBlueAccent),
+      VoiceState.disconnected => ('Mất kết nối', FlatArt.inkSoft),
+      VoiceState.connecting => ('Đang đánh thức bạn nhỏ…', FlatArt.ink),
+      VoiceState.idle => ('Sẵn sàng — chạm để nói', FlatArt.ink),
+      VoiceState.listening => ('Đang nghe bé…', FlatArt.magenta),
+      VoiceState.speaking => ('Đang trả lời…', FlatArt.cyan),
     };
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.circle, size: 10, color: color),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(label,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-            ),
-            if (state == VoiceState.disconnected && onReconnect != null) ...[
-              const SizedBox(width: 12),
-              TextButton(onPressed: onReconnect, child: const Text('Kết nối lại')),
+    return FaBlock(
+      color: FlatArt.surface,
+      radius: 14,
+      shadowOffset: const Offset(0, 3),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.circle, size: 10, color: color),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(label, style: faFont(14, w: FontWeight.w700, c: color)),
+              ),
+              if (state == VoiceState.disconnected && onReconnect != null) ...[
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: onReconnect,
+                  child: Text('Kết nối lại',
+                      style: faFont(14, w: FontWeight.w800, c: FlatArt.cyan)),
+                ),
+              ],
             ],
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 6),
+            Text(error!, style: faFont(12, w: FontWeight.w600, c: FlatArt.magenta)),
           ],
-        ),
-        if (error != null) ...[
-          const SizedBox(height: 6),
-          Text(error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
         ],
-      ],
+      ),
     );
   }
 }
@@ -469,9 +631,9 @@ class _TranscriptViewState extends State<_TranscriptView> {
   @override
   Widget build(BuildContext context) {
     if (widget.turns.isEmpty) {
-      return const Center(
+      return Center(
         child: Text('Chạm nút bên dưới để bắt đầu nói chuyện.',
-            style: TextStyle(color: Colors.grey)),
+            style: faFont(13, w: FontWeight.w500, c: FlatArt.inkSoft)),
       );
     }
     return ListView.builder(
@@ -482,9 +644,10 @@ class _TranscriptViewState extends State<_TranscriptView> {
         return Column(
           children: [
             if (turn.inText.isNotEmpty)
-              _bubble('Bé', turn.inText, Colors.indigo.shade50),
+              _bubble('Bé', turn.inText, FlatArt.cyan.withValues(alpha: 0.18)),
             if (turn.outText.isNotEmpty)
-              _bubble('Bạn nhỏ', turn.outText, Colors.green.shade50),
+              _bubble('Bạn nhỏ', turn.outText,
+                  FlatArt.magenta.withValues(alpha: 0.18)),
           ],
         );
       },
@@ -493,52 +656,39 @@ class _TranscriptViewState extends State<_TranscriptView> {
 
   Widget _bubble(String who, String text, Color bg) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(who, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          Text(who, style: faFont(12, w: FontWeight.w800)),
           const SizedBox(height: 4),
-          Text(text, style: const TextStyle(fontSize: 16)),
+          Text(text, style: faFont(15, w: FontWeight.w500)),
         ],
       ),
     );
   }
 }
 
+/// The talk button: a big flat-art pill that presses down onto its shadow. Locked
+/// during cold-start (connecting) and disconnected so the child can't trigger
+/// broken taps; magenta while the mic is open.
 class _TalkButton extends StatefulWidget {
-  const _TalkButton({required this.controller});
+  const _TalkButton({required this.controller, required this.color});
   final VoiceController controller;
+  final Color color;
 
   @override
   State<_TalkButton> createState() => _TalkButtonState();
 }
 
-class _TalkButtonState extends State<_TalkButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
+class _TalkButtonState extends State<_TalkButton> {
   bool _pressed = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // A gentle "tap me" breathing pulse while the button is idle-and-ready.
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
   void _onTap() {
-    HapticFeedback.lightImpact(); // a satisfying confirmation tap (iOS)
+    HapticFeedback.mediumImpact();
     widget.controller.toggleMic();
   }
 
@@ -547,64 +697,48 @@ class _TalkButtonState extends State<_TalkButton>
     final c = widget.controller;
     final micOpen = c.micOpen;
     // Enabled only once the backend is ready — locked during cold-start
-    // (connecting) and when disconnected, so the child can't trigger broken taps.
+    // (connecting) and when disconnected.
     final ready = switch (c.state) {
       VoiceState.idle || VoiceState.listening || VoiceState.speaking => true,
       VoiceState.connecting || VoiceState.disconnected => false,
     };
-    final color = micOpen ? Colors.red : Colors.indigo;
+    final color = !ready
+        ? const Color(0xFFC9CFD8)
+        : (micOpen ? FlatArt.magenta : widget.color);
     final label = !ready
         ? (c.state == VoiceState.connecting ? 'Đợi một chút…' : 'Chưa sẵn sàng')
-        : (micOpen ? 'Đang nghe… (chạm để dừng)' : 'Chạm để nói');
-    // Pulse only when idle-and-ready; press scales down; otherwise steady.
-    final idleReady = ready && !micOpen;
+        : (micOpen ? 'Chạm để dừng' : 'Chạm để nói');
+    final h = context.isTablet ? 92.0 : 76.0;
 
-    return GestureDetector(
-      onTap: ready ? _onTap : null,
-      onTapDown: ready ? (_) => setState(() => _pressed = true) : null,
-      onTapUp: ready ? (_) => setState(() => _pressed = false) : null,
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedBuilder(
-        animation: _pulse,
-        builder: (context, child) {
-          final pulse = idleReady ? 1.0 + _pulse.value * 0.025 : 1.0;
-          final scale = _pressed ? 0.96 : pulse;
-          return Transform.scale(scale: scale, child: child);
-        },
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 36),
+      child: GestureDetector(
+        onTap: ready ? _onTap : null,
+        onTapDown: ready ? (_) => setState(() => _pressed = true) : null,
+        onTapUp: ready ? (_) => setState(() => _pressed = false) : null,
+        onTapCancel: () => setState(() => _pressed = false),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          height: context.isTablet ? 120 : 96,
+          duration: const Duration(milliseconds: 90),
+          transform: Matrix4.translationValues(0, _pressed ? 6 : 0, 0),
+          height: h,
           decoration: BoxDecoration(
-            color: ready ? color : Colors.grey,
-            borderRadius: BorderRadius.circular(48),
-            boxShadow: [
-              BoxShadow(
-                color: (ready ? color : Colors.grey)
-                    .withValues(alpha: micOpen ? 0.6 : 0.4),
-                blurRadius: micOpen ? 28 : 12,
-                spreadRadius: micOpen ? 2 : 0,
-              ),
-            ],
+            color: color,
+            borderRadius: BorderRadius.circular(h / 2),
+            border: inkBorder(3.5),
+            boxShadow: _pressed ? null : hardShadow(offset: const Offset(0, 6)),
           ),
           child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(micOpen ? Icons.mic : Icons.mic_none,
-                    color: Colors.white, size: context.isTablet ? 40 : 34),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    label,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(micOpen ? Icons.mic_rounded : Icons.mic_none_rounded,
+                  color: FlatArt.ink, size: context.isTablet ? 36 : 30),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(label,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
+                    style: faFont(context.isTablet ? 22 : 20,
+                        w: FontWeight.w800)),
+              ),
+            ]),
           ),
         ),
       ),
