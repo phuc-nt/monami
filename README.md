@@ -100,7 +100,9 @@ The app is currently in TestFlight (internal + external testing).
 **Completed (Phase 1–6):**
 - Bilingual voice conversation loop with Gemini Live
 - Multi-child profiles and per-device anonymous identity
-- Per-child persistent memory summaries
+- Per-child layered memory: durable facts (pets/likes/dislikes) + soft summary +
+  done-topics, code-merged so durable facts survive re-summarization
+- Curriculum stored in Firestore (add a lesson = add a doc), bundled-JSON fallback
 - Gendered robot face with animation
 - Guest (no-storage) mode
 - TestFlight deployment

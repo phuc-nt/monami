@@ -48,3 +48,7 @@ build/
 # Local cloud config (backend URL + token) for app builds — NEVER commit
 app/.cloud-config
 .cloud-config
+
+# === UI/UX preview app — throwaway, isolated. Safe to delete entire folder. ===
+# Other agents: IGNORE this folder. It does not affect app/ or backend/.
+preview/

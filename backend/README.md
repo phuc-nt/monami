@@ -116,8 +116,9 @@ Firestore enable, `gcloud run deploy`) is a separate phase; build via Cloud Buil
 | `gemini_session.py` | per-connection relay: uplink/downlink pumps |
 | `gemini_session_config.py` | verified Gemini Live config + system prompt builder (includes optional mode + lesson) |
 | `learning_modes.py` | VALID_MODES, parse_mode, mode-specific leading scripts |
-| `curriculum.py` | loads + renders JSON curriculum topics; tracks per-child progress via memory markers |
-| `curriculum/{english,science}.json` | bilingual topic data (kid-safe content, ages 4-10) |
+| `curriculum.py` | loads topics from Firestore (`{PREFIX}curriculum/{mode}/topics`, cache-on-success) with JSON fallback; renders one topic; tracks progress via `memory.done_topics` |
+| `curriculum/{english,science}.json` | bilingual topic data (kid-safe, ages 4-10) — now the Firestore fallback source |
+| `scripts/seed_curriculum.py` | seeds Firestore curriculum from the JSON (IDs preserved, idempotent, prod-confirm guard) |
 | `child_profile.py` | profile registry (Vy, Phong) → system-prompt text |
 | `profile_store.py` | per-child memory load/save (local JSON in `profiles/`) |
 | `scripts/ws_test_client.py` | local WS test client (proves the loop; `--profile`, `--mode`) |
