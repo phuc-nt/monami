@@ -103,7 +103,10 @@ The app is currently in TestFlight (internal + external testing).
 - Per-child layered memory: durable facts (pets/likes/dislikes) + soft summary +
   done-topics, code-merged so durable facts survive re-summarization
 - Curriculum stored in Firestore (add a lesson = add a doc), bundled-JSON fallback
-- Gendered robot face with animation
+- Gendered robot face with animation (LED dot-matrix, per-gender variants)
+- Flat-art "Sticker Scene" UI: the robot stands as a character in one of 6
+  illustrated worlds (night/space/underwater/forest/rainbow/snow), with a comic
+  speech bubble + confetti; a device-wide theme rotates worlds after a long session
 - Guest (no-storage) mode
 - TestFlight deployment
 
