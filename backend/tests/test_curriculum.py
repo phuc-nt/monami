@@ -62,7 +62,7 @@ def test_each_mode_has_four_topics_with_unique_ids():
 
 def test_every_rendered_topic_within_cap():
     for mode in ("english", "science"):
-        for t in curriculum._load_file(mode):
+        for t in curriculum._load_topics(mode):
             lesson = curriculum.render_lesson(mode, t)
             assert len(lesson) <= curriculum._MAX_LESSON_CHARS, f"{mode}:{t['id']}"
 
@@ -167,7 +167,7 @@ def test_render_lesson_is_compact_and_bilingual():
     # Contains both languages markers (the bilingual "/").
     assert "/" in lesson and ("=" in lesson or "Topic" in lesson)
     # Only ONE topic rendered: the other topic's title must not appear.
-    other = [x for x in curriculum._load_file("english") if x["id"] != t["id"]]
+    other = [x for x in curriculum._load_topics("english") if x["id"] != t["id"]]
     if other:
         assert other[0]["title_vi"] not in lesson
 
