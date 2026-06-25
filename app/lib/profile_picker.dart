@@ -62,6 +62,14 @@ class _ProfilePickerState extends State<ProfilePicker> {
   // Guards against a fast double-tap (likely with a 5-year-old) pushing two
   // routes — which on the add form would create two children.
   bool _navigating = false;
+  // Drives the "more to scroll →" hint on the character row.
+  final ScrollController _charScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _charScroll.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -180,62 +188,104 @@ class _ProfilePickerState extends State<ProfilePicker> {
     final isTablet = context.isTablet;
     final headInk = widget.spec.headingInk;
     final empty = _children.isEmpty;
-    return LayoutBuilder(builder: (context, constraints) {
-      final contentMax = constraints.maxWidth.clamp(0.0, 760.0);
-      // Character width scales down as more children share the row.
-      final count = _children.length + 1; // + the add character
-      final charW = (contentMax / count - 16).clamp(96.0, 168.0);
 
-      return SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
+    // Fixed header (title + gear) and fixed footer (guest button) so neither is
+    // EVER clipped, regardless of how many children there are or the screen size
+    // / orientation. The characters live in the flexible middle band, standing in
+    // a horizontal row that scrolls sideways when there are more than fit — they
+    // never wrap into a taller column, so the footer stays put.
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isTablet ? 32 : 16),
+      child: Column(
+        children: [
+          _topBar(headInk),
+          const SizedBox(height: 4),
+          FaBlock(
+            color: FlatArt.surface,
+            radius: 20,
+            shadowOffset: const Offset(0, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Text(
+              empty ? 'Thêm bé để bắt đầu' : 'Ai đang chơi nào?',
+              textAlign: TextAlign.center,
+              style: faFont(isTablet ? 28 : 24, w: FontWeight.w800),
+            ),
+          ),
+          // The character band takes all the space between header and footer; the
+          // characters size themselves to THIS height (the real constraint), so
+          // they always fit vertically and the footer can't be pushed off-screen.
+          Expanded(child: _characterRow(isTablet)),
+          SizedBox(height: isTablet ? 16 : 10),
+          // Footer actions live OUTSIDE the horizontal scroll band, so they're
+          // always reachable: "create profile" + guest, side by side.
+          _footerActions(),
+          SizedBox(height: isTablet ? 24 : 14),
+        ],
+      ),
+    );
+  }
+
+  Widget _footerActions() => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (_children.length < kMaxChildren) ...[
+            _PillButton(
+              icon: Icons.add_rounded,
+              label: 'Tạo hồ sơ mới',
+              color: widget.spec.ctaColor,
+              onTap: _addChild,
+            ),
+            const SizedBox(width: 12),
+          ],
+          _PillButton(
+            icon: Icons.bolt_rounded,
+            label: 'Khách',
+            color: FlatArt.surface,
+            onTap: widget.onGuest,
+          ),
+        ],
+      );
+
+  /// A horizontally-scrolling row of standing characters. Each is sized from the
+  /// available band HEIGHT (so it always fits vertically); the row centers when
+  /// the characters fit and scrolls sideways when they don't — same on a tall
+  /// phone or a wide iPad. A fade + chevron on the right edge signals "more to
+  /// scroll" and disappears once scrolled to the end.
+  Widget _characterRow(bool isTablet) {
+    return LayoutBuilder(builder: (context, c) {
+      final bandH = c.maxHeight;
+      final charH = bandH.clamp(0.0, isTablet ? 420.0 : 320.0);
+      final faceW = (charH / 1.9) * (32 / 20);
+      final charW = faceW.clamp(92.0, isTablet ? 220.0 : 150.0);
+      final gap = isTablet ? 20.0 : 12.0;
+
+      final row = Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (var i = 0; i < _children.length; i++) ...[
+            if (i > 0) SizedBox(width: gap),
+            _ChildCharacter(
+              child: _children[i],
+              width: charW,
+              onTap: () => widget.onPick(_children[i]),
+              onManage: () => _manage(_children[i]),
+            ),
+          ],
+        ],
+      );
+
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: _ScrollHint(
+          child: SingleChildScrollView(
+            controller: _charScroll,
+            scrollDirection: Axis.horizontal,
+            // ConstrainedBox + centered Row centers when the content is narrower
+            // than the viewport, and scrolls when it's wider — one widget, both.
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: contentMax),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: isTablet ? 32 : 16),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _topBar(headInk),
-                    const SizedBox(height: 8),
-                    FaBlock(
-                      color: FlatArt.surface,
-                      radius: 20,
-                      shadowOffset: const Offset(0, 4),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 8),
-                      child: Text(
-                        empty ? 'Thêm bé để bắt đầu' : 'Ai đang chơi nào?',
-                        textAlign: TextAlign.center,
-                        style: faFont(isTablet ? 28 : 24, w: FontWeight.w800),
-                      ),
-                    ),
-                    SizedBox(height: isTablet ? 40 : 24),
-                    // Characters stand on the ground, side by side (wraps if many).
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.end,
-                      spacing: 12,
-                      runSpacing: 16,
-                      children: [
-                        for (final child in _children)
-                          _ChildCharacter(
-                            child: child,
-                            width: charW,
-                            onTap: () => widget.onPick(child),
-                            onManage: () => _manage(child),
-                          ),
-                        if (_children.length < kMaxChildren)
-                          _AddCharacter(width: charW, onTap: _addChild),
-                      ],
-                    ),
-                    SizedBox(height: isTablet ? 32 : 20),
-                    _GuestButton(onTap: widget.onGuest),
-                    SizedBox(height: isTablet ? 32 : 20),
-                  ],
-                ),
-              ),
+              constraints: BoxConstraints(minWidth: c.maxWidth),
+              child: row,
             ),
           ),
         ),
@@ -258,31 +308,6 @@ class _ProfilePickerState extends State<ProfilePicker> {
             ),
         ],
       );
-}
-
-/// A prominent "Khách (chơi nhanh)" pill — a clear call-to-action so a parent can
-/// jump into a no-setup session at a glance.
-class _GuestButton extends StatelessWidget {
-  const _GuestButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return FaPressable(
-      color: FlatArt.surface,
-      radius: 22,
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.bolt_rounded, color: FlatArt.ink),
-        const SizedBox(width: 8),
-        Text('Khách (chơi nhanh)', style: faFont(16, w: FontWeight.w800)),
-      ]),
-    );
-  }
 }
 
 class _Centered extends StatelessWidget {
@@ -404,42 +429,100 @@ class _ChildCharacterState extends State<_ChildCharacter> {
       );
 }
 
-/// The "+ Thêm bé" character, shown until the soft cap of 5 is reached.
-class _AddCharacter extends StatelessWidget {
-  const _AddCharacter({required this.width, required this.onTap});
-  final double width;
+/// A compact flat-art pill button for the footer actions (create profile / guest).
+class _PillButton extends StatelessWidget {
+  const _PillButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 32), // align with character bodies
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return FaPressable(
+      color: color,
+      radius: 18,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: FlatArt.ink, size: 20),
+        const SizedBox(width: 6),
+        Text(label, style: faFont(15, w: FontWeight.w800)),
+      ]),
+    );
+  }
+}
+
+/// Wraps a horizontal scrollable and overlays a right-edge fade + chevron when
+/// there's more content to scroll to. The hint disappears once scrolled to the
+/// end, and never shows when everything already fits — so the user always knows
+/// whether more profiles are off-screen without any layout guesswork.
+class _ScrollHint extends StatefulWidget {
+  const _ScrollHint({required this.child});
+  final Widget child;
+  @override
+  State<_ScrollHint> createState() => _ScrollHintState();
+}
+
+class _ScrollHintState extends State<_ScrollHint> {
+  bool _showRight = false;
+
+  bool _update(ScrollMetrics m) {
+    final show = m.hasContentDimensions && m.extentAfter > 1.0;
+    if (show != _showRight) {
+      // Defer the setState out of the layout/scroll-notification phase.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _showRight = show);
+      });
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (n) => _update(n.metrics),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) => _update(n.metrics),
+        child: Stack(
           children: [
-            FaBlock(
-              color: FlatArt.surface,
-              radius: 14,
-              borderWidth: 2,
-              shadowOffset: const Offset(0, 3),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-              child: Text('Thêm bé', style: faFont(16, w: FontWeight.w800)),
-            ),
-            const SizedBox(height: 8),
-            FaBlock(
-              color: FlatArt.surface,
-              radius: 22,
-              padding: const EdgeInsets.all(8),
-              child: SizedBox(
-                width: width,
-                height: width * (20 / 32),
-                child: const Center(
-                  child: Icon(Icons.add_rounded, color: FlatArt.ink, size: 44),
+            widget.child,
+            // Right-edge fade + chevron — only when more is scrollable.
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _showRight ? 1 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Container(
+                    width: 56,
+                    alignment: Alignment.centerRight,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          FlatArt.ink.withValues(alpha: 0),
+                          FlatArt.ink.withValues(alpha: 0.16),
+                        ],
+                      ),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: Icon(Icons.chevron_right_rounded,
+                          color: FlatArt.ink, size: 32),
+                    ),
+                  ),
                 ),
               ),
             ),

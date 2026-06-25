@@ -46,10 +46,10 @@ void main() {
     await settle(tester);
 
     // Empty device → guest entry is visible.
-    expect(find.text('Khách (chơi nhanh)'), findsOneWidget);
+    expect(find.text('Khách'), findsOneWidget);
 
     // Tap "Khách" → guest voice screen with the NEUTRAL face.
-    await tester.tap(find.text('Khách (chơi nhanh)'));
+    await tester.tap(find.text('Khách'));
     await settle(tester);
     expect(find.text('Bạn của Khách'), findsOneWidget);
     expect(topFaceVariant(tester), FaceVariant.neutral);
@@ -61,7 +61,7 @@ void main() {
     // Leave the guest session (custom back button).
     await tester.tap(find.byIcon(Icons.arrow_back).first);
     await settle(tester);
-    expect(find.text('Khách (chơi nhanh)'), findsOneWidget); // back on picker
+    expect(find.text('Khách'), findsOneWidget); // back on picker
 
     // The KEY invariant: the guest device created NO children on the backend.
     final svc = ChildService(restBase: 'http://127.0.0.1:8000', deviceId: deviceId);

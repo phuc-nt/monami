@@ -32,8 +32,8 @@ void main() {
     await settle(tester);
 
     // From the picker, go straight to a guest voice session (no setup needed).
-    expect(find.text('Khách (chơi nhanh)'), findsOneWidget);
-    await tester.tap(find.text('Khách (chơi nhanh)'));
+    expect(find.text('Khách'), findsOneWidget);
+    await tester.tap(find.text('Khách'));
     await settle(tester);
 
     // The voice screen shows all 4 mode chips; "Trò chuyện" is the default.
@@ -62,6 +62,6 @@ void main() {
     // Leave cleanly.
     await tester.tap(find.byIcon(Icons.arrow_back).first);
     await settle(tester);
-    expect(find.text('Khách (chơi nhanh)'), findsOneWidget);
+    expect(find.text('Khách'), findsOneWidget);
   });
 }
