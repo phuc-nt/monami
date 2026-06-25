@@ -50,6 +50,8 @@ dependencies:
   shared_preferences: ^2.5.5
   http: ^1.6.0
   uuid: ^4.5.3
+  # Celebrate burst on a happy turn (pure-Flutter, no asset files).
+  confetti: ^0.8.0
 
 dev_dependencies:
   flutter_test:
@@ -87,6 +89,16 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Bundle the Baloo 2 weights the UI uses so google_fonts loads them from assets
+  # — no runtime network fetch (offline-safe, instant first paint, works in
+  # tests). google_fonts requires each weight as its own file.
+  assets:
+    - google_fonts/Baloo2-Regular.ttf
+    - google_fonts/Baloo2-Medium.ttf
+    - google_fonts/Baloo2-SemiBold.ttf
+    - google_fonts/Baloo2-Bold.ttf
+    - google_fonts/Baloo2-ExtraBold.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

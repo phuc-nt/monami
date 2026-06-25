@@ -49,12 +49,18 @@ class RobotFace extends StatefulWidget {
     this.variant = FaceVariant.neutral,
     this.litColor = const Color(0xFF7CF6C8), // friendly mint-green LEDs
     this.screenColor = const Color(0xFF15202B),
+    this.bloom = 1.0,
   });
 
   final RobotExpression expression;
   final FaceVariant variant;
   final Color litColor;
   final Color screenColor;
+
+  /// Bloom multiplier — how much the LEDs glow. 1.0 = the original baseline; the
+  /// flat-art scenes push this higher (e.g. 1.4–1.8) for a richer, dimensional
+  /// look on the dark screen. Default keeps existing callers unchanged.
+  final double bloom;
 
   @override
   State<RobotFace> createState() => _RobotFaceState();
@@ -95,6 +101,7 @@ class _RobotFaceState extends State<RobotFace>
                 t: _anim.value, // 0..1 over 6s
                 litColor: widget.litColor,
                 screenColor: widget.screenColor,
+                bloom: widget.bloom,
               ),
             );
           },
@@ -111,6 +118,7 @@ class _RobotFacePainter extends CustomPainter {
     required this.t,
     required this.litColor,
     required this.screenColor,
+    required this.bloom,
   });
 
   final RobotExpression expression;
@@ -118,15 +126,24 @@ class _RobotFacePainter extends CustomPainter {
   final double t; // 0..1 animation clock
   final Color litColor;
   final Color screenColor;
+  final double bloom;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Dark rounded "screen".
+    // Dark rounded "screen" with a subtle top-down sheen so it reads as glass.
     final screenRect = RRect.fromRectAndRadius(
       Offset.zero & size,
       Radius.circular(size.shortestSide * 0.1),
     );
     canvas.drawRRect(screenRect, Paint()..color = screenColor);
+    // Glass sheen: a faint lighter wash at the top fading to nothing.
+    final sheen = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.center,
+        colors: [Colors.white.withValues(alpha: 0.06), Colors.transparent],
+      ).createShader(Offset.zero & size);
+    canvas.drawRRect(screenRect, sheen);
 
     final f = _faceFor(expression, variant, t);
 
@@ -144,9 +161,17 @@ class _RobotFacePainter extends CustomPainter {
 
     final dimPaint = Paint()..color = litColor.withValues(alpha: 0.05);
     final litPaint = Paint()..color = litColor.withValues(alpha: litBright);
-    final glowPaint = Paint()
-      ..color = litColor.withValues(alpha: 0.22 * litBright)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    // Core highlight — a near-white hot center on each LED for a 3D bead look.
+    final corePaint = Paint()
+      ..color = Color.lerp(litColor, Colors.white, 0.5)!
+          .withValues(alpha: 0.9 * litBright);
+    // Two-pass bloom: a tight inner glow + a wide soft halo, scaled by `bloom`.
+    final innerGlow = Paint()
+      ..color = litColor.withValues(alpha: 0.30 * litBright * bloom)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    final outerGlow = Paint()
+      ..color = litColor.withValues(alpha: 0.16 * litBright * bloom)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9);
 
     for (var r = 0; r < _rows; r++) {
       for (var c = 0; c < _cols; c++) {
@@ -155,8 +180,10 @@ class _RobotFacePainter extends CustomPainter {
           margin + cellH * (r + 0.5) + f.faceDy * cellH, // happy bounce offset
         );
         if (f.isLit(c, r)) {
-          canvas.drawCircle(center, dotR * 1.6, glowPaint);
+          canvas.drawCircle(center, dotR * 2.4, outerGlow);
+          canvas.drawCircle(center, dotR * 1.5, innerGlow);
           canvas.drawCircle(center, dotR, litPaint);
+          canvas.drawCircle(center, dotR * 0.42, corePaint);
         } else {
           canvas.drawCircle(center, dotR * 0.65, dimPaint);
         }
@@ -262,7 +289,8 @@ class _RobotFacePainter extends CustomPainter {
       old.variant != variant ||
       old.t != t ||
       old.litColor != litColor ||
-      old.screenColor != screenColor;
+      old.screenColor != screenColor ||
+      old.bloom != bloom;
 }
 
 /// One eye: a block centered at (cx,cy) spanning w x h cells. h==0 means blinking
